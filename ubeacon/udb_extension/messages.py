@@ -1,0 +1,8 @@
+STATUS_BAD_MODE_FMT = "Python debugging is not supported when {mode_message}."
+STATUS_NOT_PYTHON = "Python debugging is not supported when UDB is not debugging a Python interpreter."
+STATUS_PYTHON_NEEDS_INIT = "Python debugging cannot be started because the interpreter has not yet been initialized. Type `upy go init` to move to the earliest point when the interperter is initialized"
+STATUS_PYTHON_READY = "Python debugging is supported, but not started. Type `upy inject` to start recording."
+STATUS_UBEACON_LOADED = "Python debugging is supported and running."
+GO_INIT_NOT_RECORDING = "This command is only supported in record mode."
+GO_INIT_ALREADY_INIT = "The Python interperter is already initialized."
+UBEACON_REQUIRED = "Python debugging support is not enabled. Run `upy inject` to begin."
