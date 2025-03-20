@@ -12,6 +12,10 @@
 #include <stdio.h>
 #include <Python.h>
 #include <frameobject.h> /* Warning, this isn't part of the Public API! */
+#include <string.h>
+#include <sys/types.h>
+
+#include "cJSON.h"
 
 #include "ubeacon.h"
 
@@ -27,18 +31,49 @@
  *  \param frame_no An integer describing the position of the proviced frame object in the stack.
  */
 __attribute__((unused))
-static void
-s_ubeacon_interact_frame_json(FILE *file, PyFrameObject *frame, unsigned frame_no)
+static cJSON*
+s_frame_to_cJSON(PyFrameObject *py_frame, unsigned raw_frame_no)
 {
-    PyCodeObject *code = PyFrame_GetCode(frame);
+    PyCodeObject *code = PyFrame_GetCode(py_frame);
+    if (!code) goto fail;
 
     /* co_name and co_filename are not part of the public API so we need to be careful here! */
-    const char *func_name = PyUnicode_AsUTF8(code->co_name);
-    const char *file_name = PyUnicode_AsUTF8(code->co_filename);
-    int line = PyFrame_GetLineNumber(frame);
 
-    fprintf(file, "{\"func_name\": \"%s\", \"file_name\": \"%s\", \"line\": %d, \"frame_no\": %u}",
-            func_name, file_name, line, frame_no);
+    cJSON *frame = cJSON_CreateObject();
+    if (frame == NULL) goto fail_frame;
+
+    cJSON *func_name = cJSON_CreateString(PyUnicode_AsUTF8(code->co_name));
+    if (func_name == NULL) goto fail_func_name;
+
+    cJSON *file_name = cJSON_CreateString(PyUnicode_AsUTF8(code->co_filename));
+    if (file_name == NULL) goto fail_file_name;
+
+    cJSON *line = cJSON_CreateNumber(PyFrame_GetLineNumber(py_frame));
+    if (line == NULL) goto fail_line;
+
+    cJSON *frame_no = cJSON_CreateNumber(raw_frame_no);
+    if (frame_no == NULL) goto fail_frame_no;
+
+    cJSON_AddItemToObject(frame, "func_name", func_name);
+    cJSON_AddItemToObject(frame, "file_name", file_name);
+    cJSON_AddItemToObject(frame, "line", line);
+    cJSON_AddItemToObject(frame, "frame_no", frame_no);
+
+    Py_DECREF(code);
+    return frame;
+
+fail_frame_no:
+    cJSON_Delete(line);
+fail_line:
+    cJSON_Delete(file_name);
+fail_file_name:
+    cJSON_Delete(func_name);
+fail_func_name:
+    cJSON_Delete(frame);
+fail_frame:
+    Py_DECREF(code);
+fail:
+    return NULL;
 }
 
 
@@ -54,31 +89,83 @@ __attribute__((unused))
 static void
 s_ubeacon_interact_backtrace_json(const char* path)
 {
+    if (path == NULL) return;
 
-    FILE *file = NULL;
-    file = fopen(path, "w");
-    assert(file != NULL);
-    fprintf(file, "{\"frames\": [");
+    FILE *file = fopen(path, "w");
+    if (file == NULL) return;
 
-    if (Py_IsInitialized())
+    if (!Py_IsInitialized()) goto fail_no_python;
+
+    cJSON *top_level = cJSON_CreateObject();
+    if (top_level == NULL) goto fail_no_python;
+
+    cJSON *frames = cJSON_CreateArray();
+    if (frames == NULL) goto fail_frames;
+    cJSON_AddItemToObject(top_level, "frames", frames);
+    
+    PyGILState_STATE state = PyGILState_Ensure();
+    unsigned frame_no = 0;
+    for (PyFrameObject *py_frame = ubeacon_get()->current_frame;
+         py_frame != NULL;
+         py_frame = PyFrame_GetBack(py_frame))
     {
-        PyGILState_STATE state = PyGILState_Ensure();
-        unsigned frame_no = 0;
-        for (PyFrameObject *frame = ubeacon_get()->current_frame;
-             frame != NULL;
-             frame = PyFrame_GetBack(frame))
+        cJSON *frame = s_frame_to_cJSON(py_frame, frame_no);
+        if (frame == NULL)
         {
-            s_ubeacon_interact_frame_json(file, frame, frame_no);
-            bool is_top_frame = PyFrame_GetBack(frame) == NULL;
-            if (!is_top_frame) fprintf(file, ",");
-            Py_DECREF(frame);
-            frame_no++;
+            Py_DECREF(py_frame);
+            goto fail_frames;
         }
-        PyGILState_Release(state);
+        frame_no++;
+        cJSON_AddItemToArray(frames, frame);
+        Py_DECREF(py_frame);
     }
+    PyGILState_Release(state);
 
-    fprintf(file, "]}");
+    fprintf(file, "%s", cJSON_Print(top_level));
+
+fail_frames:
+    cJSON_Delete(top_level);
+fail_no_python:
     fclose(file);
+}
+
+
+__attribute__((unused))
+static cJSON *
+s_local_to_cJSON(PyObject *py_name, PyObject *py_value)
+{
+    PyObject *name_str = PyObject_Str(py_name);
+    if (name_str == NULL) goto fail_py_name;
+
+    PyObject *value_str = PyObject_Repr(py_value);
+    if (value_str == NULL) goto fail_py_value;
+
+    cJSON *local = cJSON_CreateObject();
+    if (local == NULL) goto fail_local;
+
+    cJSON *name = cJSON_CreateString(PyUnicode_AsUTF8(name_str));
+    if (name == NULL) goto fail_name;
+
+    cJSON *value = cJSON_CreateString(PyUnicode_AsUTF8(value_str));
+    if (value == NULL) goto fail_value;
+
+    cJSON_AddItemToObject(local, "name", name);
+    cJSON_AddItemToObject(local, "value", value);
+
+    Py_DECREF(value_str);
+    Py_DECREF(name_str);
+    return local;
+
+fail_value:
+    cJSON_Delete(name);
+fail_name:
+    cJSON_Delete(local);
+fail_local:
+    Py_DECREF(value_str);
+fail_py_value:
+    Py_DECREF(name_str);
+fail_py_name:
+    return NULL;
 }
 
 
@@ -94,39 +181,37 @@ __attribute__((unused))
 static void
 s_ubeacon_interact_locals_json(const char *path)
 {
-    FILE *file = NULL;
-    file = fopen(path, "w");
-    assert(file != NULL);
-    fprintf(file, "{\"locals\": [");
+    if (path == NULL) return;
 
-    if (Py_IsInitialized())
+    FILE *file = fopen(path, "w");
+    if (file == NULL) return;
+
+    if (!Py_IsInitialized()) goto fail_no_python;
+
+    cJSON *top_level = cJSON_CreateObject();
+    if (top_level == NULL) goto fail_no_python;
+
+    cJSON *locals = cJSON_CreateArray();
+    if (locals == NULL) goto fail_locals;
+    cJSON_AddItemToObject(top_level, "locals", locals);
+
+    PyGILState_STATE state = PyGILState_Ensure();
+    PyObject *py_locals = PyEval_GetLocals();
+    PyObject *key, *value;
+    Py_ssize_t pos = 0;
+    while (locals && PyDict_Next(py_locals, &pos, &key, &value))
     {
-        PyGILState_STATE state = PyGILState_Ensure();
-        PyObject *locals = PyEval_GetLocals();
-        PyObject *key, *value;
-        Py_ssize_t pos = 0;
-        Py_ssize_t len = PyDict_Size(locals);
-
-        while (locals && PyDict_Next(locals, &pos, &key, &value)) {
-            PyObject *key_str = PyObject_Str(key);
-            PyObject *value_str = PyObject_Repr(value);
-
-            if (key_str && value_str) {
-                fprintf(file, "{\"name\": \"%s\", \"value\": \"%s\"}",
-                        PyUnicode_AsUTF8(key_str),
-                        PyUnicode_AsUTF8(value_str));
-            }
-
-            Py_XDECREF(key_str);
-            Py_XDECREF(value_str);
-
-            bool is_last_local = pos == len;
-            if (!is_last_local) fprintf(file, ",");
-        }
-        PyGILState_Release(state);
+        cJSON *local = s_local_to_cJSON(key, value);
+        if (local == NULL) continue;
+        cJSON_AddItemToArray(locals, local);
     }
+    PyGILState_Release(state);
 
-    fprintf(file, "]}");
+    fprintf(file, "%s", cJSON_Print(top_level));
+
+fail_locals:
+    cJSON_Delete(top_level);
+fail_no_python:
     fclose(file);
 }
 
