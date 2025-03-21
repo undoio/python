@@ -23,6 +23,8 @@
 #include "traceback.h"
 #include "ubeacon.h"
 
+static int s_trace_existing_threads(void);
+
 
 /**
  *  \brief A simple FNV-1 hash function to converting a string to an uint64_t.
@@ -236,66 +238,21 @@ s_trace_entry_point(PyObject *obj, PyFrameObject *frame, int what, PyObject *arg
 
 
 /**
- *  \brief Convert a string to a PyTrace enum integer.
- *
- *  When a trace function is called from Python rather than C, it's `what` parameter is provided as
- *  a string instead of an integer. This function converts the provided string to the corresponding
- *  integer.
- *
- *  \param what The string to be converted.
- *  \return The integer value corresponding to the provided string, or -1 if there is no matching value.
- */
-static int
-s_what_to_int(const char *what)
-{
-    if (strcmp(what, "line") == 0) return PyTrace_LINE;
-    else if (strcmp(what, "return") == 0) return PyTrace_RETURN;
-    else if (strcmp(what, "call") == 0) return PyTrace_CALL;
-    else if (strcmp(what, "exception") == 0) return PyTrace_EXCEPTION;
-    return -1;
-}
-
-
-/**
- *  \brief Wrap s_trace_entry_point() such that it can be called from Python code.
+ *  \brief A function to set up full tracing when called from Python
  *
  *  CPython's `PyEval_SetTrace()` function can only be used to switch tracing on for existing
  *  threads. In the event that new thread are created, Python's threading module supplies the
- *  `threading.settrace()` function. This function ensures that tracing is thread on any new threads
- *  that happen to be created (so long as they're created using the `threading`
- *  module). Unfortunately there is no C equivalent of this function, so we need to have a Python
- *  wrapper for the trace entry point. This is that function.
+ *  `threading.settrace()` function. Unfortunately, lines don't get traced when using
+ *  `threading.settrace()`, only call/ret/exceptions. This function gets called for every new thread
+ *  created using `threading.Thread()`, and it sets up full tracing on all threads using the C API.
  *
  *  See the CPython API documentation for detailed information on the arguments and return value of
  *  Python functions written in C.
  */
 static PyObject *
-s_trace_python_entry_point(PyObject *self, PyObject *args) {
-    PyObject *frame = NULL;
-    PyObject *what = NULL;
-    PyObject *arg = NULL;
-
-    if (!PyArg_ParseTuple(args, "OOO", &frame, &what, &arg))
-    {
-        PyErr_SetString(PyExc_TypeError, "Invalid arguments");
-        return NULL;
-    }
-
-    if (!PyFrame_Check(frame))
-    {
-        PyErr_SetString(PyExc_TypeError, "Expected a PyFrameObject");
-        return NULL;
-    }
-
-    if (!PyUnicode_Check(what))
-    {
-        PyErr_SetString(PyExc_TypeError, "Expected a str object");
-        return NULL;
-    }
-
-    int what_int = s_what_to_int(PyUnicode_AsUTF8(what));
-    s_trace_entry_point(self, (PyFrameObject *)frame, what_int, arg);
-
+s_trace_python_entry_point(PyObject *self __attribute__((unused)), PyObject *args __attribute__((unused)))
+{
+    s_trace_existing_threads(); /* This is a somewhat nuclear option! */
     Py_RETURN_NONE;
 }
 
