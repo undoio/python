@@ -61,27 +61,14 @@ added: /home/gfg/git/python-debugging/ubeacon/ubeacon
 not running>
 ```
 
-4. Start or attach to your Python application, ensure that the interpreter is initialised with `upy
-   go init` and enable Python recording with `upy start`:
+4. Start recording Python with the `upy start <args>` command:
 
 ```
-not running> start ~/scratch/ubeacon_tests/examples/fizzbuzz.py 
-
-This GDB supports auto-downloading debuginfo from the following URLs:
-  <https://debuginfod.ubuntu.com>
-Debuginfod has been disabled.
-To make this setting permanent, add 'set debuginfod enabled off' to .gdbinit.
-Temporary breakpoint 1 at 0x1060: file ./Programs/python.c, line 14.
-Starting program: /home/gfg/.pyenv/versions/3.10.13/bin/python ~/scratch/ubeacon_tests/examples/fizzbuzz.py
-
-Temporary breakpoint 1, main (argc=argc@entry=2, argv=argv@entry=0x7fffffffd8b8) at ./Programs/python.c:14
-14	./Programs/python.c: No such file or directory.
-recording 31,117> upy go init
-NOTE: The inferior call was executed in "volatile mode", meaning that changes
-      to program state were made to a temporary copy of the debugged program,
-      which was discarded when the command completed.
+not running> upy start ~/scratch/ubeacon_tests/examples/fizzbuzz.py
 Python has been initialized.
-recording 5,669,462> upy start
+  #0 File "/home/gfg/scratch/ubeacon_tests/examples/fizzbuzz.py", line 1, in <module>
+    import sys
+recording 3,820,812> 
 ```
 
 5. Python debugging is now running, so you can use normal UDB commands to move around, or commands
@@ -116,10 +103,14 @@ Have switched to record mode.
 recording 8,192,208> 
 ```
 
-Where possible, the commands for debugging python have been designed to match UDB's normal debugging commands, but prefixed with `uexperimental python` (or `upy` for short). For example GDB's `where` command - which is an alias for `backtrace` - has a Python equivalent `upy where` (or `upy backtrace`).
+Where possible, the commands for debugging python have been designed to match UDB's normal debugging
+commands, but prefixed with `uexperimental python` (or `upy` for short). For example GDB's `where`
+command - which is an alias for `backtrace` - has a Python equivalent `upy where` (or `upy
+backtrace`).
 
 A full list of commands can be seen with the `help upy` command.
 
 ## TUI Interface ##
 
-In order to make debugging Python more user friendly, a TUI interface specifically tailored to Python debugging is provided. This is accesible with the `layout python` command.
+In order to make debugging Python more user friendly, a TUI interface specifically tailored to
+Python debugging is provided. This is accesible with the `layout python` command.

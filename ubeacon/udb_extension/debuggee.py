@@ -6,6 +6,7 @@ TODO: talk about whether functions modify or not
 import gdb # ignore: mypy[import-untyped]
 
 import contextlib
+import functools
 
 from enum import Enum, auto
 from typing import Iterator
@@ -77,6 +78,21 @@ def python_state() -> PythonState:
         return PythonState.NOT_INITIALIZED
 
     return PythonState.INITIALIZED
+
+
+@contextlib.contextmanager
+def allow_pending():
+    output = gdb.execute("show breakpoint pending", to_string=True)
+    was_on = "on" in output.lower()
+
+    gdb.execute("set breakpoint pending on")
+    try:
+        yield
+    finally:
+        if was_on:
+            gdb.execute("set breakpoint pending on")
+        else:
+            gdb.execute("set breakpoint pending off")
 
 
 def is_python() -> bool:
@@ -248,6 +264,7 @@ class Function:
         ]
         return code, len(code)
 
+    @functools.cache
     def _find_executable_space(self, len: int) -> int:
         # this is lifted straigt from out engnie implementation of info prog maps
         maps = []

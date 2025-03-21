@@ -262,6 +262,9 @@ def exception_origin(exception_name: str | None) -> str:
     else:
         return exception_origin
 
+def first_line_of_file() -> str:
+    return f"{STATE_STRUCT}.current_line == 1"
+
 def _simple_hash(data_str: str) -> int:
     """
     An implementation of the FNV-1 hash. Must match that in ubeacon.c's s_ubeacon_simple_hash().
@@ -281,12 +284,13 @@ def _simple_hash(data_str: str) -> int:
 
 class _BreakpointInternal(gdb.Breakpoint):
     def __init__(self, location: str, condition: str | None = None) -> None:
-        super().__init__(location, internal=True)
-        self.silent = True
-        self.follow_up: Callable[[], None] | None = None
+        with debuggee.allow_pending():
+            super().__init__(location, internal=True)
+            self.silent = True
+            self.follow_up: Callable[[], None] | None = None
 
-        if condition:
-            self.condition = condition
+            if condition:
+                self.condition = condition
 
     @property
     def hit(self) -> bool:
@@ -420,6 +424,9 @@ class FunctionBreakpoint(ExternalBreakpoint):
 
 def ready():
     gdb.events.stop.connect(_stop_handler)
+
+def clear():
+    gdb.events.stop.disconnect(_stop_handler)
 
 def _stop_handler(event: gdb.StopEvent):
     global backtrace, locals

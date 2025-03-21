@@ -84,19 +84,20 @@ def uexperimental__python__status(udb: udb_base.Udb) -> None:
 
 
 @command.register(gdb.COMMAND_STATUS, repeat=False)
-def uexperimental__python__start(udb: udb_base.Udb) -> None:
+def uexperimental__python__record(udb: udb_base.Udb) -> None:
     """
-    Inject the Undo Python record time library into the debuggee.
+    Enable debugging of Python code.
 
-    Provided that the debuggee is a running and fully initialized Python interpreter, this
-    command will inject and initialise the Undo Python record time library. This library
-    is a small debugging library that allows UDB to accurately unwind and query CPython
-    interpreter state.
+    Normal UDB recording must already be enabled. Provided that the debuggee is a running and fully
+    initialized Python interpreter, this command will inject and initialise the Undo Python record
+    time library. This library is a small debugging library that allows UDB to accurately unwind and
+    query CPython interpreter state.
 
     If the debuggee is not a Python interpreter, or is not in a good state, an error
     message will be printed.
     """
-
+    with contextlib.suppress(Exception):
+        ubeacon.clear()
     report.dev2("Injecting")
 
     # We first check that the debuggee is a Python interpreter that is initialized.
@@ -132,13 +133,38 @@ def uexperimental__python__start(udb: udb_base.Udb) -> None:
     ubeacon.ready()
 
 
-@command.register(gdb.COMMAND_RUNNING, repeat=False)
-def uexperimental__python__go__init(udb: udb_base.Udb) -> None:
+@command.register(gdb.COMMAND_RUNNING, repeat=False, arg_parser=command_args.Untokenized())
+def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
     """
-    Jump to the earliest point in time where the Python interpreter is initialized.
+    Start a Python application and enable Python recording.
+
+    USAGE: upy start [args]
+
+    This function is the Python equivalent of UDB's `start` command, it will start the debuggee, the
+    `args` will be passed to the application being started, and the interpreter will stop once initialization has begun.
     """
     init_functions = [
         "Py_Initialize", "Py_InitializeEx", "_Py_InitializeMain", "Py_InitializeFromConfig"
+    ]
+    init_breakpoints: dict[str, gdb.Breakpoint] = {}
+
+    def enable_init_breakpoints(event: gdb.NewObjFileEvent | None) -> None:
+        """
+        A function to set breakpoints on entry into Python initialization functions.
+
+        This function is inserted as a GDB new object file event handler (see
+        https://sourceware.org/gdb/current/onlinedocs/gdb.html/Events-In-Python.html#Events-In-Python)
+        as the Python initialization functions may not be available until the libpython.so
+        library has been loaded by the dynamic linker. It's also called directly when the
+        `uexperimental python record` is executed so that it gets a chance to set the
+        breakpoints immediately if the symbols happen to be available right away.
+
+        Once we have detected that the symbols are available, this event handler is removed from GDB
+        and further handling is done by the `complete_rted, and the interpreter will stop once
+        initialization has begun.
+        """
+    init_functions = [
+        "Py_Initialize", "Py_InitializeEx", "_Py_InitializeMain", "Py_InitializeFromConfig",
     ]
     init_breakpoints: dict[str, gdb.Breakpoint] = {}
 
@@ -201,42 +227,22 @@ def uexperimental__python__go__init(udb: udb_base.Udb) -> None:
         assert debuggee.python_state() == debuggee.PythonState.INITIALIZED, debuggee.python_state()
         report.user("Python has been initialized.")
 
-    # execution_mode = udb.get_execution_mode()
-    # if execution_mode != engine.ExecutionMode.RECORDING:
-    #     raise report.ReportableError(messages.GO_INIT_NOT_RECORDING)
+    with gdbutils.breakpoints_suspended():
+        gdb.events.new_objfile.connect(enable_init_breakpoints)
+        gdb.events.stop.connect(complete_initialization)
+        enable_init_breakpoints(None)
+        gdb.execute(f"run {args}")
+        gdb.execute("upy record")
 
-    python_state = debuggee.python_state()
-    if python_state == debuggee.PythonState.INITIALIZED:
-        raise report.ReportableError(messages.GO_INIT_ALREADY_INIT)
-
-    # If our Python interpreter is not ready yet, we'll need to set breakpoints and
-    # wait for it to be initialised.
-    gdb.events.new_objfile.connect(enable_init_breakpoints)
-    gdb.events.stop.connect(complete_initialization)
-    enable_init_breakpoints(None)
-    udb.execution.run()
-
-
-@contextlib.contextmanager
-def _allow_pending():
-    output = gdb.execute("show breakpoint pending", to_string=True)
-    was_on = "on" in output.lower()
-
-    gdb.execute("set breakpoint pending on")
-    try:
-        yield
-    finally:
-        if was_on:
-            gdb.execute("set breakpoint pending on")
-        else:
-            gdb.execute("set breakpoint pending off")
+        with ubeacon.InternalBreakpoint(condition=ubeacon.first_line_of_file()):
+            gdb.execute("continue")
 
 
 def _goto_boundry_internal(start: bool = True, show_message: bool = True) -> None:
     # TODO: what happens if we can't find any python code?
     with (
             gdbutils.breakpoints_suspended(),
-            _allow_pending(),
+            debuggee.allow_pending(),
             ubeacon.InternalBreakpoint(show_message=show_message)
     ):
         if start:
@@ -482,7 +488,7 @@ def _exception_internal(
 
     with (
         gdbutils.breakpoints_suspended(),
-        _allow_pending(),
+        debuggee.allow_pending(),
         ubeacon.InternalBreakpoint(location=ubeacon.EXCEPTION_FN, show_message=False) as next_exception,
     ):
         next_exception.condition = ubeacon.exception_origin(exception_type)
