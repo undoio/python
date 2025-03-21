@@ -71,6 +71,10 @@ Python has been initialized.
 recording 3,820,812> 
 ```
 
+> [!NOTE]
+> There is currently no equivalent to UDB's `run` and `attach` commands. To mimic run use `upy
+> start` followed by `continue`. To mimic attach use `attach` followed by `upy record`.
+
 5. Python debugging is now running, so you can use normal UDB commands to move around, or commands
    prefixed with `upy` to debug Python code. See `help upy` for more information on the available
    Python debugging commands. For example, to set a breakpoint and continue to it:
