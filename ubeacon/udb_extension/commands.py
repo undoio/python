@@ -521,3 +521,16 @@ def uexperimental__python__go__exception__prev(udb: udb_base.Udb, exception_type
     debugger will stop at every exception that was thrown.
     """
     _exception_internal(udb.execution.reverse_cont, udb, exception_type)
+
+
+@command.register(gdb.COMMAND_RUNNING)
+def uexperimental__python__enable(udb: udb_base.Udb) -> None:
+    """
+    Manually install the UBeacon UDB handlers for use with Undo recordings.
+
+    In order to use UBeacon with a recording, the UBeacon record time library must be loaded
+    manually into the recorded code. When the recording is loaded in UDB, run this command to enable
+    Python source debugging.
+    """
+    ubeacon.ready()
+
