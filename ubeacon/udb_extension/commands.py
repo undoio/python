@@ -134,6 +134,34 @@ def uexperimental__python__record(udb: udb_base.Udb) -> None:
 
 
 @command.register(gdb.COMMAND_RUNNING, repeat=False, arg_parser=command_args.Untokenized())
+def uexperimental__python__run(udb: udb_base.Udb, args: str) -> None:
+    """
+    Run a Python application and enable Python recording.
+
+    USAGE: upy run [args]
+
+    This function is the Python equivalent of UDB's `run` command, it will start the debuggee and
+    the `args` will be passed to the application being run.
+    """
+    gdb.execute(f"upy start {args}", to_string=True)
+    gdb.execute("continue")
+
+
+@command.register(gdb.COMMAND_RUNNING, repeat=False, arg_parser=command_args.Integer())
+def uexperimental__python__attach(udb: udb_base.Udb, pid: str) -> None:
+    """
+    Attach to a Python application and enable Python recording.
+
+    USAGE: upy attach [pid]
+
+    This command is the Python equivalent of UDB's `attach` command, it will attach to the
+    interpreter, start recording, and enable Python debugging.
+    """
+    gdb.execute(f"attach {pid}")
+    gdb.execute("upy record")
+
+
+@command.register(gdb.COMMAND_RUNNING, repeat=False, arg_parser=command_args.Untokenized())
 def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
     """
     Start a Python application and enable Python recording.
@@ -141,7 +169,8 @@ def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
     USAGE: upy start [args]
 
     This function is the Python equivalent of UDB's `start` command, it will start the debuggee, the
-    `args` will be passed to the application being started, and the interpreter will stop once initialization has begun.
+    `args` will be passed to the application being started, and the interpreter will stop once
+    initialization has begun.
     """
     init_functions = [
         "Py_Initialize", "Py_InitializeEx", "_Py_InitializeMain", "Py_InitializeFromConfig"
