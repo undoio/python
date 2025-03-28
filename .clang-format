@@ -1,0 +1,261 @@
+# See docs/internal/CodingStyleC.rst or http://donny/docs/CodingStyleC.html for
+# details.
+#
+# Note that lots of options now have symbolic names, not just true/false, but
+# some were added quite recently.
+
+BasedOnStyle: Mozilla
+
+# Extra indent/outdent for C++ access modifiers, like "public:".
+# -4 keeps it aligned with the "class"/"struct" keyword.
+AccessModifierOffset: -4
+
+# Align continued lines with the opening parenthesis.
+AlignAfterOpenBracket: true
+
+# Whether to align assignments on consecutive lines like this:
+#     const char *my_name = "Marco";
+#     size_t len          = strlen(my_name);
+AlignConsecutiveAssignments: false
+
+# How to align the "\" for defines covering multiple lines.
+# If "Left" or "true" they are all aligned, but as left as possible.
+# If "Right" or "false" they are aligned to the right of the file by adding a
+# lot of spaces.
+# If "DontAlign" (only available in new clang versions, no alignment is done).
+AlignEscapedNewlinesLeft: true
+
+# Whether to align operands of a single expression that needs to be split over
+# multiple lines.
+AlignOperands: true
+
+# Whether to align traling comments across multiple lines.
+# For instance, if "true":
+#     int foo = bar; // Hello world.
+#     int a;         // Ciao mondo!
+AlignTrailingComments: true
+
+# Allow putting all parameters of a function declaration onto a separate line,
+# even if BinPackParameters is "false".
+AllowAllParametersOfDeclarationOnNextLine: false
+
+# Whether to allow short statements (like "if (a) { return 42; }") on a single
+# line. We only allow ifs.
+AllowShortBlocksOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: false
+
+# New line after the return type in a function definition (not declaration!).
+AlwaysBreakAfterReturnType: TopLevelDefinitions
+
+# To make things more consistent, break before a multiline string.
+AlwaysBreakBeforeMultilineStrings: true
+
+# Like AlwaysBreakAfterReturnType but for "template<...>".
+AlwaysBreakTemplateDeclarations: false
+
+# If "false", function arguments are fit all on a single line and, if not
+# possible, split with only one argument per line.
+# If ColumnLimit is 0, then setting this to "true" means that developers need
+# to break lines manually where they want to.
+BinPackArguments: true
+
+# Like BinPackArguments but for parameters.
+BinPackParameters: true
+
+# How to break lines around "&&", "||", etc.
+# "None" breaks after the operators.
+BreakBeforeBinaryOperators: None
+
+# Where to put braces.
+# "Allman" means that a new line is always added before braces, we want
+# something similar but not identical (due to "AfterExternBlock: false") so we
+# need to use "Custom".
+BreakBeforeBraces: Custom
+BraceWrapping:
+    AfterControlStatement: true
+    AfterEnum: true
+    AfterExternBlock: false # "extern C {" on a single line.
+    AfterFunction: true
+    AfterNamespace: true
+    AfterObjCDeclaration: true
+    AfterClass: true
+    AfterStruct: true
+    AfterUnion: true
+    AfterCaseLabel: true
+    BeforeCatch: true
+    BeforeElse: true
+    IndentBraces: false # Don't indent braces themselves.
+    SplitEmptyFunction: true
+    SplitEmptyNamespace: true
+    SplitEmptyRecord: true
+
+# How to indent long ternary operators.
+# If "true"
+#     veryVeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongDescription
+#         ? firstValue
+#         : secondValueVeryVeryVeryVeryLong;
+# If "false":
+#     veryVeryVeryVeryVeryVeryVeryVeryVeryVeryVeryLongDescription ?
+#         firstValue :
+#         secondValueVeryVeryVeryVeryLong;
+BreakBeforeTernaryOperators: true
+
+# How to align commas in C++ constructors.
+BreakConstructorInitializers: AfterColon
+
+# Maximum line width.
+ColumnLimit: 0
+
+# Comments which a special magic meaning which should not be split.
+CommentPragmas: '^ IWYU pragma:'
+
+# Put every C++ initializer on a separate line if they don't all fit on a
+# single one.
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+
+# How much indentation to use for C++ initializers.
+ConstructorInitializerIndentWidth: 8
+
+# How much indentation to use for continued lines (note that functions are
+# also controlled by AlignAfterOpenBracket).
+ContinuationIndentWidth: 8
+
+# How to align C++11-style braced lists.
+# This also affects how C initializers like "int a[] = { b, c, d }" are
+# treated. Among other things, "false" adds spaces between braces and content.
+Cpp11BracedListStyle: false
+
+# Whether PointerAlignment should be detected instead of using a fixed setting.
+DerivePointerAlignment: false
+
+# Whether to disable formatting completely.
+DisableFormat: false
+
+# Macros which implement a "for each"-like statement. They will be treated like
+# "for"s so the body will be indented, but also a space will be added before the
+# parenthesis.
+ForEachMacros: ['array_FOREACH', 'array_countable_FOREACH', 'array_index_FOREACH', 'bits_FOREACH', 'breakpoint_FOREACH', 'child_mmaps_FOREACH', 'debug_sysinfo_FOREACH', 'defsigs_FOREACH', 'event_FOREACH', 'hash_table_u64_FOREACH', 'large_bitmask_FOREACH', 'list_FOREACH', 'mmap_FOREACH', 'mmap_FOREACH_IN_RANGE', 'mmap_FOREACH_IN_RANGE_SAFE', 'mmap_FOREACH_IN_SPAN', 'mmap_FOREACH_IN_SPAN_SAFE', 'mmap_FOREACH_SAFE', 'nursery_FOREACH', 'ordered_map_FOREACH', 'path_list_FOREACH', 'proc_tids_breakpoints_FOREACH', 'proc_tids_breakpoints_FOREACH_REVERSE', 'proc_tids_result_FOREACH', 'proc_tids_result_FOREACH_REVERSE', 'proc_tids_thread_FOREACH', 'RB_FOREACH', 'RB_FOREACH_REVERSE', 'RB_FOREACH_REVERSE_SAFE', 'RB_FOREACH_SAFE', 'rtid_states_FOREACH', 'rtid_states_FOREACH_CONST', 'signal_FOREACH', 'SPLAY_FOREACH', 'vector_FOREACH', 'vector_FOREACH_REVERSE']
+
+
+IncludeBlocks: Regroup
+
+IncludeCategories:
+  - Regex:           '^"\./'
+    Priority:        1
+  - Regex:           '^"apps/'
+    Priority:        2
+  - Regex:           '^"config/'
+    Priority:        3
+  - Regex:           '^"engine_api/'
+    Priority:        4
+  - Regex:           '^"engine_impl/'
+    Priority:        5
+  - Regex:           '^"experimental/'
+    Priority:        6
+  - Regex:           '^"keyfile/'
+    Priority:        7
+  - Regex:           '^"recording/'
+    Priority:        8
+  - Regex:           '^"util/'
+    Priority:        9
+  # 3rd party code:
+  - Regex:           '^"3rd_party/'
+    Priority:        10
+  # C system includes:
+  - Regex:           '^<.*\.h>'
+    Priority:        11
+  # C ++ system includes:
+  - Regex:           '^<.*'
+    Priority:        12
+  - Regex:           '^"(\.\./)+'
+    Priority:        13
+  - Regex:           '.*'
+    Priority:        1000 # These shouldn't happen!
+
+# Whether "case" labels should be indented.
+IndentCaseLabels: true
+
+# How to indent pre-processor directives.
+IndentPPDirectives: None
+
+# How many spaces for indentation.
+IndentWidth: 4
+
+# Indent after a function declaration is split on multiple lines.
+IndentWrappedFunctionNames: false
+
+# Whether to keep empty lines at the start of a block.
+KeepEmptyLinesAtTheStartOfBlocks: true
+
+# Language to use. "Cpp" also covers C, not only C++.
+Language: Cpp
+
+# The maximum number of consecutive empty lines to keep.
+MaxEmptyLinesToKeep: 1
+
+# How to indent inside C++ namespaces.
+NamespaceIndentation: None
+
+# Objective-C stuff
+ObjCBlockIndentWidth: 3
+ObjCSpaceAfterProperty: true
+ObjCSpaceBeforeProtocolList: false
+
+# Penalties to calculate what to do when all the options are a bit ugly...
+PenaltyBreakBeforeFirstCallParameter: 100
+PenaltyBreakComment: 300
+PenaltyBreakFirstLessLess: 120
+PenaltyBreakString: 1000
+PenaltyExcessCharacter: 1000000
+PenaltyReturnTypeOnItsOwnLine: 200
+
+# Where to put "*"s for pointers.
+PointerAlignment: Right
+
+# Put includes into a sensible order, as described by IncludeCategories.
+SortIncludes: true
+
+# Space after a C-style cast (i.e. "a = (int) b").
+SpaceAfterCStyleCast: false
+
+# Space before assignments.
+SpaceBeforeAssignmentOperators: true
+
+# Space before parenthesis only for "if", "for", etc. and not for calls.
+SpaceBeforeParens: ControlStatements
+
+# Don't add a space inside parenthesis if empty.
+SpaceInEmptyParentheses: false
+
+# How many spaces before a trailig "//" comment.
+# This doesn't apply to "/* ... */" comments.
+SpacesBeforeTrailingComments: 1
+
+# Whether to add spaces inside "<" and ">" for C++ templates.
+SpacesInAngles: false
+
+# Whether to add spaces inside C-style casts.
+SpacesInCStyleCastParentheses: false
+
+# Spaces inside contained literals (for Objective-C and Javascript).
+SpacesInContainerLiterals: true
+
+# Whether to add spaces inside parenthesis.
+SpacesInParentheses: false
+
+# Whether to add spaces inside square brackets.
+SpacesInSquareBrackets: false
+
+# Which C++ standard to use.
+# We support C++14 in product code (see docs/internal/CodingStyleC) but
+# clang-format does not have a Cpp14 setting, so we use Cpp11.
+Standard: Cpp11
+
+# How wide should a tab be?
+TabWidth: 4
+
+# Never ever use tabs! They are evil!
+UseTab: Never

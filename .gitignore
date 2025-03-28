@@ -1,0 +1,6 @@
+.python-version
+.cache
+undo_internal*
+build/
+compile_commands.json
+__pycache__
