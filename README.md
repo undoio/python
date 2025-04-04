@@ -6,10 +6,28 @@ The Undo Beacon library - "UBeacon" - is a Python library that attempts to expos
 state to the Undo Engine in a reasonably performant and stable way. This allows basic time travel
 debugging of Python code using special commands - implemented in the `udb` tool.
 
-> [!NOTE]
-> The UBeacon library *must* be loaded and started at record time.
+### Improvements over `libpython` ###
+
+This is the [second iteration](https://git.undoers.io/Undo/python-debugging) of Undo's Python
+debugging capability. This engineering preview was designed specifically to address the main
+limitations of the previous approach. Namely:
+
+- Python interpreter symbols are no longer required. This allows debugging of Python from a wide
+  range of sources including distro package managers, `pyenv`, custom builds, and more.
+
+- The versions supported have been expanded. Python debugging is now supported on Python 3.9+.
+
+- Python navigation and information commands have been reworked and extended. To debug Python code,
+  prefix a normal UDB command with `upy`, for example: `upy step`, `upy reverse-finish`, `upy
+  backtrace`. For a full list of available Python commands type `help upy`.
+
+- Breakpoints in Python code are now supported, see `upy break` and `upy info break`, `upy delete`
+  for more information.
 
 ## Usage ##
+
+> [!NOTE]
+> The UBeacon library *must* be loaded and started at record time.
 
 1. The UBeacon library is written in C, and must be built before it can be used. Run the `setup.py`
    script to build it. Bear in mind that the library will be built to target the version of Python
@@ -68,7 +86,7 @@ not running> upy start ~/scratch/ubeacon_tests/examples/fizzbuzz.py
 Python has been initialized.
   #0 File "/home/gfg/scratch/ubeacon_tests/examples/fizzbuzz.py", line 1, in <module>
     import sys
-recording 3,820,812> 
+recording 3,820,812>
 ```
 
 > [!NOTE]
@@ -104,7 +122,7 @@ Python breakpoint 1, fizzbuzz () at /home/gfg/scratch/ubeacon_tests/examples/fiz
 Have switched to record mode.
   #0 File "/home/gfg/scratch/ubeacon_tests/examples/fizzbuzz.py", line 4, in fizzbuzz
     for i in range(1, max + 1):
-recording 8,192,208> 
+recording 8,192,208>
 ```
 
 Where possible, the commands for debugging python have been designed to match UDB's normal debugging
