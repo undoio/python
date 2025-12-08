@@ -99,6 +99,12 @@ s_exception_type(PyObject *exc_info)
 
     PyObject *exc_type = PyTuple_GetItem(exc_info, 0);
     PyObject *exc_type_name = PyObject_GetAttrString(exc_type, "__name__");
+    if (!exc_type_name)
+    {
+        PyErr_SetString(PyExc_RuntimeError, "exc_type does not have '__name__'.");
+        return NULL;
+    }
+
     PyObject *exc_type_name_str = PyObject_Str(exc_type_name);
     const char* result =  PyUnicode_AsUTF8(exc_type_name_str);
 
