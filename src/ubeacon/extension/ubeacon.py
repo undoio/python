@@ -8,10 +8,11 @@ breakpoints on these trace functions which correspond to 'normal' debugging oper
 Python code (next/step/finish etc.).
 """
 
-import gdb # ignore: mypy[import-untyped]
+import gdb  # pyright: ignore[reportMissingModuleSource]
 
 import contextlib
 import functools
+import subprocess
 import tempfile
 import json
 import os
@@ -24,8 +25,7 @@ import pygments
 import pygments.lexers
 import pygments.formatters
 
-from src.udbpy import report
-from src.udbpy.gdb_extensions import gdbutils
+from src.udbpy import report  # pyright: ignore[reportMissingModuleSource]
 
 from . import debuggee, messages
 
@@ -38,6 +38,26 @@ CALL_FN  = f"{TRACE_PREFIX}_call"
 RET_FN  = f"{TRACE_PREFIX}_ret"
 EXCEPTION_FN  = f"{TRACE_PREFIX}_exception"
 
+@functools.cache
+def build() -> Path:
+    """
+    Build the UBeacon library for the current version of Python.
+    """
+    assert debuggee.is_python()
+    progspace = gdb.current_progspace()
+    assert progspace is not None
+    assert progspace.executable_filename is not None
+    python_executable = progspace.executable_filename
+    root = Path(__file__).resolve().parent.parent.parent.parent
+    output = subprocess.check_output(
+        [python_executable, "find_so.py"], text=True, cwd=root
+    )
+    lib_path = Path(output.strip())
+    if not lib_path.exists():
+        subprocess.check_call([python_executable, "setup.py", "build"], cwd=root, stdout=subprocess.DEVNULL)
+    assert lib_path.exists(), f"Cannot find ubeacon library: {lib_path.exists()=} {lib_path}"
+    return lib_path
+
 
 def require() -> None:
     """
@@ -48,7 +68,7 @@ def require() -> None:
 
 @contextlib.contextmanager
 def startup_file() -> Iterator[Path]:
-    ubeacon_path = os.environ.get("UBEACON")
+    ubeacon_path = build()
     startup_file_content = f"""
 \"\"\"
 This code is injected into a running Python program by UDB.

@@ -24,44 +24,17 @@ limitations of the previous approach. Namely:
 - Breakpoints in Python code are now supported, see `upy break` and `upy info break`, `upy delete`
   for more information.
 
-## Usage ##
+## Example Usage ##
 
 > [!NOTE]
-> The UBeacon library *must* be loaded and started at record time.
+> The UBeacon library *must* be loaded and started at record time. You can use `upy attach`,
+> `upy run` or `upy start` to do this.
 
-1. The UBeacon library is written in C, and must be built before it can be used. Run the `setup.py`
-   script to build it. Bear in mind that the library will be built to target the version of Python
-   used to execute the `setup.py` script.
-
-```
-gfg@nog:~/git/python-debugging/ubeacon$ python setup.py build
-running build
-running build_ext
-building 'ubeacon' extension
-creating build
-creating build/temp.linux-x86_64-cpython-310
-creating build/temp.linux-x86_64-cpython-310/ubeacon
-gcc -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -fPIC -I/home/gfg/.pyenv/versions/3.10.13/include/python3.10 -c ubeacon/interact.c -o build/temp.linux-x86_64-cpython-310/ubeacon/interact.o -O0
-gcc -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -fPIC -I/home/gfg/.pyenv/versions/3.10.13/include/python3.10 -c ubeacon/trace.c -o build/temp.linux-x86_64-cpython-310/ubeacon/trace.o -O0
-gcc -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O3 -Wall -fPIC -I/home/gfg/.pyenv/versions/3.10.13/include/python3.10 -c ubeacon/ubeacon.c -o build/temp.linux-x86_64-cpython-310/ubeacon/ubeacon.o -O0
-creating build/lib.linux-x86_64-cpython-310
-gcc -shared -L/home/gfg/.pyenv/versions/3.10.13/lib -Wl,-rpath,/home/gfg/.pyenv/versions/3.10.13/lib -L/home/gfg/.pyenv/versions/3.10.13/lib -Wl,-rpath,/home/gfg/.pyenv/versions/3.10.13/lib build/temp.linux-x86_64-cpython-310/ubeacon/interact.o build/temp.linux-x86_64-cpython-310/ubeacon/trace.o build/temp.linux-x86_64-cpython-310/ubeacon/ubeacon.o -L/home/gfg/.pyenv/versions/3.10.13/lib -o build/lib.linux-x86_64-cpython-310/ubeacon.cpython-310-x86_64-linux-gnu.so
-```
-
-2. Set the `UBEACON` environment variable is set to the path of the library shared object you just
-   built:
+1. Start UDB and load the replay time UBeacon extension using the command `source
+   <path-to-ubeacon>/src/ubeacon/extension/startup.py`:
 
 ```
-gfg@nog:~/git/python-debugging/ubeacon$ export UBEACON=$(realpath $(find -name 'ubeacon.*.so'))
-gfg@nog:~/git/python-debugging/ubeacon$ echo $UBEACON
-/home/gfg/git/python-debugging/ubeacon/build/lib.linux-x86_64-cpython-310/ubeacon.cpython-310-x86_64-linux-gnu.so
-```
-
-3. Start UDB and load the replay time UBeacon extension using the command `source
-   <path-to-ubeacon>/src/ubeacon/udbpy/startup.py`:
-
-```
-gfg@nog:~/git/python-debugging/ubeacon$ /home/gfg/git/core/release-x64/udb /home/gfg/.pyenv/versions/3.10.13/bin/python
+gfg@nog:~/git/ubeacon$ /home/gfg/git/core-ai/release-x64/udb /usr/bin/python3.12 -ex "source /home/gfg/git/ubeacon/src/ubeacon/extension/startup.py"
 UDB 8.3.0-dev.g3a673bb4a019. Copyright 2025 Undo.
 Licensed to: Testfarm User <noreply@undo.io>
 Using GNU gdb (GDB) 13.2:
@@ -79,19 +52,24 @@ added: /home/gfg/git/python-debugging/ubeacon/ubeacon
 not running>
 ```
 
-4. Start recording Python with the `upy start <args>` command:
+2. Start recording Python with the `upy start <args>` command:
 
 ```
-not running> upy start ~/scratch/ubeacon_tests/examples/fizzbuzz.py
+not running> upy start /home/gfg/scratch/fizzbuzz.py 15
+
+This GDB supports auto-downloading debuginfo from the following URLs:
+  <https://debuginfod.ubuntu.com>
+Debuginfod has been disabled.
+To make this setting permanent, add 'set debuginfod enabled off' to .gdbinit.
+NOTE: The inferior call was executed in "volatile mode", meaning that changes
+      to program state were made to a temporary copy of the debugged program,
+      which was discarded when the command completed.
 Python has been initialized.
-  #0 File "/home/gfg/scratch/ubeacon_tests/examples/fizzbuzz.py", line 1, in <module>
-    import sys
-recording 3,820,812>
+Failed checking if argv[0] is an import path entry
+  #0 File "/usr/lib/python3.12/contextlib.py", line 1, in <module>
+    """Utilities for with-statement contexts.  See PEP 343."""
+recording 5,611,714>
 ```
-
-> [!NOTE]
-> There is currently no equivalent to UDB's `run` and `attach` commands. To mimic run use `upy
-> start` followed by `continue`. To mimic attach use `attach` followed by `upy record`.
 
 5. Python debugging is now running, so you can use normal UDB commands to move around, or commands
    prefixed with `upy` to debug Python code. See `help upy` for more information on the available
