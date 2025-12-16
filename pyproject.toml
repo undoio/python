@@ -1,0 +1,22 @@
+[project]
+name = "ubeacon"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = "==3.10.19"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.36.1",
+    "src-stubs",
+]
+
+[tool.uv.sources]
+src-stubs = { git = "https://git.undoers.io/gfg/udbpy_stubs.git" }
+
+[tool.ruff]
+line-length = 100
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
