@@ -543,3 +543,36 @@ def uexperimental__python__enable(udb: udb_base.Udb) -> None:
     """
     ubeacon.ready()
 
+
+@command.register(
+    gdb.COMMAND_RUNNING,
+    aliases=[
+        "uexperimental python c",
+        "uexperimental python fg",
+    ],
+)
+def uexperimental__python__continue(udb: udb_base.Udb) -> None:
+    """
+    Continue Python program execution.
+
+    Execution will continue until a Python breakpoint is hit, a signal is received,
+    or the program terminates.
+    """
+    gdb.execute("continue")
+
+
+@command.register(
+    gdb.COMMAND_RUNNING,
+    aliases=[
+        "uexperimental python rc",
+    ],
+)
+def uexperimental__python__reverse_continue(udb: udb_base.Udb) -> None:
+    """
+    Continue Python program execution in reverse.
+
+    Execution will continue backwards until a Python breakpoint is hit, a signal is received,
+    or the beginning of the execution history is reached.
+    """
+    gdb.execute("reverse-continue")
+
