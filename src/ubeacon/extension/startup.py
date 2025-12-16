@@ -12,4 +12,4 @@ from undo.debugger_extensions import udb
 from src.udbpy.gdb_extensions import command
 
 udb = udb._wrapped_udb  # pylint: disable=protected-access
-command.import_commands_module(udb, "udb_extension.commands")
+command.import_commands_module(udb, "extension.commands")

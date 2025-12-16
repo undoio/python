@@ -3,8 +3,13 @@ from setuptools import setup, Extension
 
 module = Extension(
     'ubeacon',
-    sources=['ubeacon/ubeacon.c', 'ubeacon/interact.c', 'ubeacon/trace.c', 'ext/cJSON/cJSON.c'],
-    extra_compile_args=["-O0", "-Iext/cJSON"],
+    sources=[
+        'src/ubeacon/lib/ubeacon.c',
+        'src/ubeacon/lib/interact.c',
+        'src/ubeacon/lib/trace.c',
+        'src/ext/cJSON/cJSON.c'
+    ],
+    extra_compile_args=["-O0", "-Isrc/ext/cJSON"],
 )
 
 setup(

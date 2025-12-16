@@ -58,7 +58,7 @@ gfg@nog:~/git/python-debugging/ubeacon$ echo $UBEACON
 ```
 
 3. Start UDB and load the replay time UBeacon extension using the command `source
-   <path-to-ubeacon>/ubeacon/udb_extension/startup.py`:
+   <path-to-ubeacon>/src/ubeacon/udbpy/startup.py`:
 
 ```
 gfg@nog:~/git/python-debugging/ubeacon$ /home/gfg/git/core/release-x64/udb /home/gfg/.pyenv/versions/3.10.13/bin/python
