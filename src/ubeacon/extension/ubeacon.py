@@ -8,6 +8,7 @@ breakpoints on these trace functions which correspond to 'normal' debugging oper
 Python code (next/step/finish etc.).
 """
 
+import re
 import gdb  # pyright: ignore[reportMissingModuleSource]
 
 import contextlib
@@ -49,13 +50,27 @@ def build() -> Path:
     assert progspace.executable_filename is not None
     python_executable = progspace.executable_filename
     root = Path(__file__).resolve().parent.parent.parent.parent
+
+    # location of built library
+    # FIXME get cache location from locations.get_undo_cache_path("ubeacon")
+    cache_dir = "/home/nbull/.cache/undo/ubeacon"
+
+    # See if it's already built
+    output = subprocess.check_output([python_executable, "find_so.py", cache_dir],
+                                     text=True, cwd=root).strip()
+    if output:
+        lib_path = Path(output)
+        if lib_path.is_file():
+            return lib_path
+
+    # Not found, build it
+    subprocess.check_call([python_executable, "setup.py", "build", f"--build-base={cache_dir}"],
+                          text=True, cwd=root, stdout=subprocess.DEVNULL)
     output = subprocess.check_output(
-        [python_executable, "find_so.py"], text=True, cwd=root
+        [python_executable, "find_so.py", cache_dir], text=True, cwd=root
     )
     lib_path = Path(output.strip())
-    if not lib_path.exists():
-        subprocess.check_call([python_executable, "setup.py", "build"], cwd=root, stdout=subprocess.DEVNULL)
-    assert lib_path.exists(), f"Cannot find ubeacon library: {lib_path.exists()=} {lib_path}"
+    assert lib_path.is_file(), f"Cannot find ubeacon library: {lib_path}"
     return lib_path
 
 
