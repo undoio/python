@@ -1,0 +1,10 @@
+{
+    "udb_addons": {
+        "python": {
+            "description": "Python debugging support",
+            "repo": "addons",
+            "script": "python/src/ubeacon/extension/startup.py",
+            "version_min": "7.0.0"
+        }
+    }
+}
