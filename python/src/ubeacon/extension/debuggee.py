@@ -24,6 +24,18 @@ def symbol_exists(symbol_name: str) -> bool:
     except gdb.error:
         return False
 
+def disable_volatile_warning_maybe():
+    """
+    Context manager to disable the volatile mode warning in GDB when evaluating expressions.
+
+    The context manager udb.volatile_warning_disabled was added in version 9.2,
+    so the message cannot be suppressed in older versions.
+    """
+    _udb = udb._wrapped_udb
+    if hasattr(_udb, "volatile_warning_disabled"):
+        return _udb.volatile_warning_disabled
+    else:
+        return contextlib.nullcontext()
 
 class PythonState(Enum):
     """
@@ -66,7 +78,8 @@ def python_state() -> PythonState:
         return PythonState.NOT_PYTHON
 
     try:
-        is_initialised = (gdb.parse_and_eval("(int)Py_IsInitialized()") == 1)
+        with disable_volatile_warning_maybe():
+            is_initialised = (gdb.parse_and_eval("(int)Py_IsInitialized()") == 1)
     except gdb.error:
         # Most of Python's functionality is implemented in the form of a library. If we are at the
         # very early stages of startup in the Python interpreter (or it's not yet started) it's

@@ -94,15 +94,15 @@ s_ubeacon_interact_backtrace_json(const char* path)
     FILE *file = fopen(path, "w");
     if (file == NULL) return;
 
-    if (!Py_IsInitialized()) goto fail_no_python;
-
     cJSON *top_level = cJSON_CreateObject();
-    if (top_level == NULL) goto fail_no_python;
+    if (top_level == NULL) goto fail_no_cjson;
 
     cJSON *frames = cJSON_CreateArray();
     if (frames == NULL) goto fail_frames;
     cJSON_AddItemToObject(top_level, "frames", frames);
     
+    if (!Py_IsInitialized()) goto fail_no_python;
+
     PyGILState_STATE state = PyGILState_Ensure();
     unsigned frame_no = 0;
     for (PyFrameObject *py_frame = ubeacon_get()->current_frame;
@@ -113,7 +113,7 @@ s_ubeacon_interact_backtrace_json(const char* path)
         if (frame == NULL)
         {
             Py_DECREF(py_frame);
-            goto fail_frames;
+            goto fail_no_python;
         }
         frame_no++;
         cJSON_AddItemToArray(frames, frame);
@@ -121,11 +121,11 @@ s_ubeacon_interact_backtrace_json(const char* path)
     }
     PyGILState_Release(state);
 
+fail_no_python:
     fprintf(file, "%s", cJSON_Print(top_level));
-
 fail_frames:
     cJSON_Delete(top_level);
-fail_no_python:
+fail_no_cjson:
     fclose(file);
 }
 
@@ -186,14 +186,14 @@ s_ubeacon_interact_locals_json(const char *path)
     FILE *file = fopen(path, "w");
     if (file == NULL) return;
 
-    if (!Py_IsInitialized()) goto fail_no_python;
-
     cJSON *top_level = cJSON_CreateObject();
-    if (top_level == NULL) goto fail_no_python;
+    if (top_level == NULL) goto fail_no_cjson;
 
     cJSON *locals = cJSON_CreateArray();
     if (locals == NULL) goto fail_locals;
     cJSON_AddItemToObject(top_level, "locals", locals);
+
+    if (!Py_IsInitialized()) goto fail_no_python;
 
     PyGILState_STATE state = PyGILState_Ensure();
     PyObject *py_locals = PyEval_GetLocals();
@@ -207,11 +207,11 @@ s_ubeacon_interact_locals_json(const char *path)
     }
     PyGILState_Release(state);
 
+fail_no_python:
     fprintf(file, "%s", cJSON_Print(top_level));
-
 fail_locals:
     cJSON_Delete(top_level);
-fail_no_python:
+fail_no_cjson:
     fclose(file);
 }
 
