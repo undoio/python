@@ -9,6 +9,7 @@ Python code (next/step/finish etc.).
 """
 
 import re
+import traceback
 import gdb  # pyright: ignore[reportMissingModuleSource]
 
 import contextlib
@@ -64,8 +65,13 @@ def build() -> Path:
             return lib_path
 
     # Not found, build it
-    subprocess.check_call([python_executable, "setup.py", "build", f"--build-base={cache_dir}"],
-                          text=True, cwd=root, stdout=subprocess.DEVNULL)
+    try:
+        subprocess.check_call([python_executable, "setup.py", "build", "--quiet", f"--build-base={cache_dir}"],
+                              text=True, cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except subprocess.CalledProcessError:
+        raise report.ReportableError("""Error occurred in Python: could not debug this version of Python.
+                                     
+            You may need to install Python development headers for this version.""")
     output = subprocess.check_output(
         [python_executable, "find_so.py", cache_dir], text=True, cwd=root
     )
@@ -140,7 +146,7 @@ def _call_dump_function(func_name: str, model_type: Type[T]) -> T:
     require()
 
     # TODO: we should probably take the GIL here.
-    with tempfile.NamedTemporaryFile() as temp_file:
+    with tempfile.NamedTemporaryFile() as temp_file, debuggee.disable_volatile_warning_maybe():
         cmd = f'call {PREFIX}_interact_{func_name}("{temp_file.name}")'
         gdb.execute(cmd)
         content = Path(temp_file.name).read_text()
@@ -150,7 +156,7 @@ def _call_dump_function(func_name: str, model_type: Type[T]) -> T:
 
 
 def evaluate(code: str) -> str:
-    with tempfile.NamedTemporaryFile() as temp_file:
+    with tempfile.NamedTemporaryFile() as temp_file, debuggee.disable_volatile_warning_maybe():
         cmd = f'call {PREFIX}_interact_eval("{temp_file.name}", "{code}")'
         gdb.execute(cmd, to_string=True)
         return Path(temp_file.name).read_text()
@@ -237,7 +243,7 @@ def get_source_file_content(file_name: Path, line_nos: bool = False, highlight: 
 
     lexer = pygments.lexers.TextLexer()
     if highlight:
-        lexer = pygments.lexers.PythonLexer()
+        lexer = pygments.lexers.PythonLexer(stripnl=False)
 
     return pygments.highlight(
         content, lexer, pygments.formatters.TerminalFormatter(linenos=line_nos)
@@ -278,6 +284,8 @@ def stop_message() -> str:
     """
     Generates a message describing the current location in Python source.
     """
+    if not backtrace.frames:
+        return "No Python frame."
     return str(backtrace.frames[0])
 
 def one_frame_up() -> str:
@@ -380,6 +388,10 @@ class ExternalBreakpoint(gdb.Breakpoint):
         current_line = int(ubeacon["current_line"])
         return f"Python breakpoint {self.index}, {current_func} () at {current_file}:{current_line}"
 
+    def stop(self) -> bool:
+        report.user(self.stop_message)
+        return True
+
     @property
     def set_message(self) -> str:
         """
@@ -418,8 +430,7 @@ class FileLineBreakpoint(ExternalBreakpoint):
         line_correct = int(ubeacon["current_line"]) == self._line
         if file_correct and line_correct:
             # TODO: should this be in a stop handler?
-            #report.user(self.stop_message)
-            pass
+            report.user(self.stop_message)
         return file_correct and line_correct
 
     def __str__(self) -> str:
@@ -459,9 +470,13 @@ class FunctionBreakpoint(ExternalBreakpoint):
 
 def ready():
     gdb.events.stop.connect(_stop_handler)
+    global active
+    active = True
 
 def clear():
     gdb.events.stop.disconnect(_stop_handler)
+    global active
+    active = False
 
 def _stop_handler(event: gdb.StopEvent):
     global backtrace, locals
@@ -475,4 +490,4 @@ def _stop_handler(event: gdb.StopEvent):
 breakpoints: list[gdb.Breakpoint] = []
 backtrace: Backtrace = Backtrace(frames=[])
 locals: LocalList = LocalList(locals=[])
-
+active: bool = False
