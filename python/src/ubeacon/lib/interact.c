@@ -105,9 +105,9 @@ s_ubeacon_interact_backtrace_json(const char* path)
 
     PyGILState_STATE state = PyGILState_Ensure();
     unsigned frame_no = 0;
-    for (PyFrameObject *py_frame = ubeacon_get()->current_frame;
-         py_frame != NULL;
-         py_frame = PyFrame_GetBack(py_frame))
+    PyFrameObject *py_frame = ubeacon_get()->current_frame;
+
+    while(py_frame != NULL)
     {
         cJSON *frame = s_frame_to_cJSON(py_frame, frame_no);
         if (frame == NULL)
@@ -118,6 +118,7 @@ s_ubeacon_interact_backtrace_json(const char* path)
         frame_no++;
         cJSON_AddItemToArray(frames, frame);
         Py_DECREF(py_frame);
+        py_frame = PyFrame_GetBack(py_frame);
     }
     PyGILState_Release(state);
 

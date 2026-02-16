@@ -75,7 +75,13 @@ s_calculate_stack_depth(PyFrameObject *top_level)
          * into `s_trace_entry_point()` with it's reference count already incremented. The caller of
          * `s_trace_entry_point()` is responsible for decrementing it, and if we do it here it
          * causes all sorts of heisenbugs in CPython (hangs/SIGSEGVs/missing imports). */
+
+        /* [#25] Py_DECREF here produces SEGVs on Python 3.12. Probably implies
+         * incorrect reference counting somewhere else. For now this will leak
+         * a lot of memory. */
+#if PY_VERSION_HEX < 0x030C0000
         if (frame != top_level) Py_DECREF(frame);
+#endif
     }
     assert(depth > 0);
     return depth;
@@ -139,7 +145,14 @@ s_is_exception_origin(PyObject *exc_info, PyObject *current_frame)
         Py_XDECREF(next);
         Py_XDECREF(frame);
         next = PyObject_GetAttrString(next, "tb_next");
-        frame = PyObject_GetAttrString(next, "tb_frame");
+        if (next && next != Py_None) // Python 3.12 can return null frames
+        {
+            frame = PyObject_GetAttrString(next, "tb_frame");
+        }
+        else
+        {
+            frame = NULL;
+        }
     }
 
 
