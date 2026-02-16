@@ -13,10 +13,10 @@ class PythonSourceWindow(tui_windows.ScrollableWindow):
 
     def get_content(self):
         try:
-            if len(ubeacon.backtrace) == 0:
+            if len(ubeacon.state.backtrace.frames) == 0:
                 return self.no_src_msg
 
-            frame = ubeacon.backtrace.frames[0]
+            frame = ubeacon.state.backtrace.frames[0]
             filename = frame.file_name
             line = frame.line
             lines = ubeacon.get_source_file_content(filename, line_nos=True, highlight=True).split("\n")

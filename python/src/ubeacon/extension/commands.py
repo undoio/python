@@ -298,7 +298,7 @@ def uexperimental__python__backtrace(udb: udb_base.Udb) -> None:
     if udb.get_current_tid() != udb.threads.ids(gdb.selected_thread()).tid:
         raise report.ReportableError("Can only backtrace the current thread.")
 
-    report.user(ubeacon.backtrace)
+    report.user(ubeacon.state.backtrace)
 
 
 @command.register(gdb.COMMAND_DATA, repeat=False)
@@ -307,7 +307,7 @@ def uexperimental__python__info__locals(udb: udb_base.Udb) -> None:
     Print local variables of the current Python frame and their values.
     """
     check_active()
-    report.user(ubeacon.locals)
+    report.user(ubeacon.state.locals)
 
 
 def _step_internal(move_fn: Callable[[], None]) -> None:

@@ -288,9 +288,9 @@ def stop_message() -> str:
     """
     Generates a message describing the current location in Python source.
     """
-    if not backtrace.frames:
+    if not state.backtrace.frames:
         return "No Python frame."
-    return str(backtrace.frames[0])
+    return str(state.backtrace.frames[0])
 
 def one_frame_up() -> str:
     current_frame = int(gdb.parse_and_eval("s_ubeacon")["current_frame"])
@@ -483,15 +483,48 @@ def clear():
     active = False
 
 def _stop_handler(event: gdb.StopEvent):
-    global backtrace, locals
-    if debuggee.symbol_exists(STATE_STRUCT):
-        backtrace = Backtrace.from_gdb()
-        locals = LocalList.from_gdb()
-    else:
-        backtrace = Backtrace(frames=[])
-        locals = LocalList(locals=[])
+    """GDB event handler called when execution stops."""
+
+    # The cached debuggee state may no longer be valid, so clear it.
+    state.clear()
+
 
 breakpoints: list[gdb.Breakpoint] = []
-backtrace: Backtrace = Backtrace(frames=[])
-locals: LocalList = LocalList(locals=[])
 active: bool = False
+
+class DebuggeeState:
+    """(Cached) state of the debuggee."""
+
+    _backtrace: Backtrace | None = None
+    """Latest Python backtrace.
+    If not currently executing Python code, the list of frames will be empty.
+    Lazily updated on request."""
+
+    locals: LocalList = LocalList(locals=[])
+    """Latest list of local variables in the current Python frame."""
+
+    @property
+    def backtrace(self) -> Backtrace:
+        """
+        The current Python backtrace.
+
+        This is updated on every stop event, so will reflect the current state of the debuggee.
+        """
+        if self._backtrace is None:
+            if debuggee.symbol_exists(STATE_STRUCT):
+                self._backtrace = Backtrace.from_gdb()
+                self.locals = LocalList.from_gdb()
+            else:
+                self._backtrace = Backtrace(frames=[])
+                self.locals = LocalList(locals=[])
+
+        return self._backtrace
+
+    def clear(self) -> None:
+        """
+        Clear all cached debuggee state.
+        """
+        self._backtrace = None
+        self.locals = LocalList(locals=[])
+
+state = DebuggeeState()
