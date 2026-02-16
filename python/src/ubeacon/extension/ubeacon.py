@@ -61,7 +61,12 @@ def build() -> Path:
     if output:
         lib_path = Path(output)
         if lib_path.is_file():
-            return lib_path
+            lib_dir = root / "src" / "ubeacon" / "lib"
+            # Check the timestamp of the library is newer than the source files, if not, we need to rebuild
+            lib_mtime = lib_path.stat().st_mtime
+            source_files = list(lib_dir.glob("*.c")) + list(lib_dir.glob("*.h"))
+            if all(lib_mtime > source.stat().st_mtime for source in source_files):
+                return lib_path
 
     # Not found, build it
     try:
