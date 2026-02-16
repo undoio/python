@@ -27,7 +27,7 @@ import pygments
 import pygments.lexers
 import pygments.formatters
 
-from src.udbpy import report  # pyright: ignore[reportMissingModuleSource]
+from src.udbpy import locations, report  # pyright: ignore[reportMissingModuleSource]
 
 from . import debuggee, messages
 
@@ -53,8 +53,7 @@ def build() -> Path:
     root = Path(__file__).resolve().parent.parent.parent.parent
 
     # location of built library
-    # FIXME get cache location from locations.get_undo_cache_path("ubeacon")
-    cache_dir = "/home/nbull/.cache/undo/ubeacon"
+    cache_dir = locations.get_undo_cache_path("ubeacon")
 
     # See if it's already built
     output = subprocess.check_output([python_executable, "find_so.py", cache_dir],
