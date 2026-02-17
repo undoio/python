@@ -19,8 +19,13 @@ class PythonSourceWindow(tui_windows.ScrollableWindow):
             frame = ubeacon.state.backtrace.frames[0]
             filename = frame.file_name
             line = frame.line
-            lines = ubeacon.get_source_file_content(filename, line_nos=True, highlight=True).split("\n")
-            prefixed_lines = [(" > " if i == line else "   ") + l for i, l in enumerate(lines, start=1)]
+            lines = ubeacon.get_source_file_content(
+                filename, line_nos=True, highlight=True
+            ).split("\n")
+            prefixed_lines = [
+                (" > " if i == line else "   ") + l
+                for i, l in enumerate(lines, start=1)
+            ]
 
             # Set vertical scroll offset to center the current line
             half_window_height = self._tui_window.height // 2

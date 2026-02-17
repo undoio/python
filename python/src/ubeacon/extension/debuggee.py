@@ -3,6 +3,7 @@ This file contains functions and classes for inspecting and modifying the UDB de
 
 TODO: talk about whether functions modify or not
 """
+
 import contextlib
 import functools
 from enum import Enum, auto
@@ -21,6 +22,7 @@ def symbol_exists(symbol_name: str) -> bool:
     except gdb.error:
         return False
 
+
 def disable_volatile_warning_maybe():
     """
     Context manager to disable the volatile mode warning in GDB when evaluating expressions.
@@ -33,6 +35,7 @@ def disable_volatile_warning_maybe():
         return _udb.volatile_warning_disabled
     else:
         return contextlib.nullcontext()
+
 
 class PythonState(Enum):
     """
@@ -60,6 +63,7 @@ class PythonState(Enum):
     The debuggee is a CPython interpreter, and is also initialised.
     """
 
+
 def python_state() -> PythonState:
     """
     Determine the state of the Python interpreter that is currently being debugged.
@@ -76,7 +80,7 @@ def python_state() -> PythonState:
 
     try:
         with disable_volatile_warning_maybe():
-            is_initialised = (gdb.parse_and_eval("(int)Py_IsInitialized()") == 1)
+            is_initialised = gdb.parse_and_eval("(int)Py_IsInitialized()") == 1
     except gdb.error:
         # Most of Python's functionality is implemented in the form of a library. If we are at the
         # very early stages of startup in the Python interpreter (or it's not yet started) it's
@@ -129,8 +133,8 @@ def general_registers() -> dict[str, int]:
     reg_values = {}
     for reg_name in reg_names:
         reg_value = frame.read_register(reg_name)
-        uint64_t = gdb.lookup_type("uintptr_t") # TODO arch specific
-        if  int(reg_value) < 0:
+        uint64_t = gdb.lookup_type("uintptr_t")  # TODO arch specific
+        if int(reg_value) < 0:
             reg_value = reg_value.cast(uint64_t)
         reg_values[reg_name] = int(reg_value)
     return reg_values
@@ -151,17 +155,18 @@ def injected_string(data: str) -> Iterator[int]:
         data: A string to be copied into the debuggee.
     """
     report.dev2(f"Injecting string: {data!r}")
-    c_str_len = len(data) + 1 # +1 for the NULL terminator
+    c_str_len = len(data) + 1  # +1 for the NULL terminator
 
     malloc = Function.from_symbol("malloc")
     free = Function.from_symbol("free")
 
     result = malloc(c_str_len)
     report.dev2(f"Malloc done: {data!r}, {result}")
-    gdb.execute(f"set {{char[{c_str_len}]}}{result} = \"{data}\"", to_string=True)
+    gdb.execute(f'set {{char[{c_str_len}]}}{result} = "{data}"', to_string=True)
     yield result
     free(result)
     report.dev2(f"Free done: {data!r}")
+
 
 class _GeneralRegisters:
     """
@@ -221,7 +226,7 @@ def temporary_registers() -> Iterator[_GeneralRegisters]:
 
 
 @contextlib.contextmanager
-def temporary_memory(addr: int , data: list[int]) -> Iterator[None]:
+def temporary_memory(addr: int, data: list[int]) -> Iterator[None]:
     """
     A context manager that temporarily writes some data into memory
 
@@ -230,11 +235,17 @@ def temporary_memory(addr: int , data: list[int]) -> Iterator[None]:
 
     read_cmd = f"print/d *(unsigned char*){hex(addr)}@{len(data)}"
     orig_data_str = gdb.execute(read_cmd, to_string=True)
-    orig_data = [int(x) for x in orig_data_str.split('=')[-1].strip()[1:-1].split(',')]
-    write_cmd = f"set {{char[{len(data)}]}} {hex(addr)} = {{" + ", ".join(map(str, data)) + "}"
+    orig_data = [int(x) for x in orig_data_str.split("=")[-1].strip()[1:-1].split(",")]
+    write_cmd = (
+        f"set {{char[{len(data)}]}} {hex(addr)} = {{" + ", ".join(map(str, data)) + "}"
+    )
     gdb.execute(write_cmd, to_string=True)
     yield
-    restore_cmd = f"set {{char[{len(orig_data)}]}} {hex(addr)} = {{" + ", ".join(map(str, orig_data)) + "}"
+    restore_cmd = (
+        f"set {{char[{len(orig_data)}]}} {hex(addr)} = {{"
+        + ", ".join(map(str, orig_data))
+        + "}"
+    )
     gdb.execute(restore_cmd, to_string=True)
 
 
@@ -258,14 +269,15 @@ class Function:
     def __init__(self, addr: int, name: str | None = None) -> None:
         self._addr = addr
         self._name = name
-    
+
     def _call_rax_indirect(self, addr: int) -> list[int]:
         # The nop is important here as this code will be injected at the top of an executable
         # map. Without the nop the debuggee will return to a SIGSEGV as it runs over the end of the
         # map. With the nop we can set a breakpoint and move the PC elsewhere.
         return [
-            0xff, 0xd0, # call rax
-            0x90,       # nop
+            0xFF,
+            0xD0,  # call rax
+            0x90,  # nop
         ]
 
     def _code(self, *args: int) -> tuple[list[int], int]:
@@ -299,7 +311,7 @@ class Function:
                     )
                     maps.append(m)
         for map in maps:
-            if map.path.startswith('['):
+            if map.path.startswith("["):
                 continue
             if map.execute:
                 # does this map have enough free space at the top end?
@@ -312,18 +324,20 @@ class Function:
         code, offset = self._code(*args)
         addr = self._find_executable_space(len(code))
         with (
-                temporary_memory(addr, code),
-                temporary_registers() as regs,
-                gdbutils.breakpoints_suspended()
+            temporary_memory(addr, code),
+            temporary_registers() as regs,
+            gdbutils.breakpoints_suspended(),
         ):
-            assert 0 <= len(args) <= 6, f"Only 0-6 args supported in debuggee calls: {args}"
+            assert (
+                0 <= len(args) <= 6
+            ), f"Only 0-6 args supported in debuggee calls: {args}"
             arg_regs = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
             for i, reg_name in enumerate(arg_regs):
                 if i >= len(args):
                     break
                 regs[reg_name] = args[i]
             regs["rax"] = self._addr
-            
+
             x = gdb.Breakpoint(f"*{hex(addr + offset)}", internal=True)
             x.silent = True
 

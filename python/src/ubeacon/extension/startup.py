@@ -7,7 +7,9 @@ from pathlib import Path
 import gdb  # pyright: ignore[reportMissingModuleSource]
 from src.udbpy import locations  # pyright: ignore[reportMissingModuleSource]
 from src.udbpy.gdb_extensions import (  # pyright: ignore[reportMissingModuleSource]
-    command, udb_base)
+    command,
+    udb_base,
+)
 
 
 @functools.cache
@@ -18,7 +20,9 @@ def udb() -> udb_base.Udb:
 
 def setup() -> None:
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    assert (root_dir / "src/ubeacon/extension").exists(), f"Invalid root directory {str(root_dir)!r}"
+    assert (
+        root_dir / "src/ubeacon/extension"
+    ).exists(), f"Invalid root directory {str(root_dir)!r}"
 
     print(f"Setting up ubeacon extension from {str(root_dir)!r}")
     print("Dependencies set up successfully")
@@ -43,7 +47,9 @@ def setup() -> None:
 def add_path(p: Path) -> None:
     sys.path.insert(0, str(p))
 
-    python_path = f"{os.environ.get('PYTHONPATH', '')}{os.pathsep}{str(p)}".rstrip(os.pathsep)
+    python_path = f"{os.environ.get('PYTHONPATH', '')}{os.pathsep}{str(p)}".rstrip(
+        os.pathsep
+    )
     os.environ["PYTHONPATH"] = python_path
 
 

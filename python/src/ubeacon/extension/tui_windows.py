@@ -156,7 +156,9 @@ class ScrollableWindow:
         free_height = window_height - content_height
         if free_height < 0:
             # We have to truncate the height, after adjusting for scroll.
-            scrolled_free_height = window_height - (content_height - self.vscroll_offset)
+            scrolled_free_height = window_height - (
+                content_height - self.vscroll_offset
+            )
             if scrolled_free_height >= 0:
                 lines = lines[self.vscroll_offset :]
             else:

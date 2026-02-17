@@ -24,8 +24,7 @@ import pydantic
 import pygments
 import pygments.formatters
 import pygments.lexers
-from src.udbpy import (locations,  # pyright: ignore[reportMissingModuleSource]
-                       report)
+from src.udbpy import locations, report  # pyright: ignore[reportMissingModuleSource]
 
 from . import debuggee, messages
 
@@ -33,9 +32,10 @@ PREFIX = "s_ubeacon"
 STATE_STRUCT = PREFIX
 TRACE_PREFIX = f"{PREFIX}_trace"
 LINE_FN = f"{TRACE_PREFIX}_line"
-CALL_FN  = f"{TRACE_PREFIX}_call"
-RET_FN  = f"{TRACE_PREFIX}_ret"
-EXCEPTION_FN  = f"{TRACE_PREFIX}_exception"
+CALL_FN = f"{TRACE_PREFIX}_call"
+RET_FN = f"{TRACE_PREFIX}_ret"
+EXCEPTION_FN = f"{TRACE_PREFIX}_exception"
+
 
 @functools.cache
 def build() -> Path:
@@ -53,8 +53,9 @@ def build() -> Path:
     cache_dir = locations.get_undo_cache_path("ubeacon")
 
     # See if it's already built
-    output = subprocess.check_output([python_executable, "find_so.py", cache_dir],
-                                     text=True, cwd=root).strip()
+    output = subprocess.check_output(
+        [python_executable, "find_so.py", cache_dir], text=True, cwd=root
+    ).strip()
     if output:
         lib_path = Path(output)
         if lib_path.is_file():
@@ -67,12 +68,25 @@ def build() -> Path:
 
     # Not found, build it
     try:
-        subprocess.check_call([python_executable, "setup.py", "build", "--quiet", f"--build-base={cache_dir}"],
-                              text=True, cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.check_call(
+            [
+                python_executable,
+                "setup.py",
+                "build",
+                "--quiet",
+                f"--build-base={cache_dir}",
+            ],
+            text=True,
+            cwd=root,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     except subprocess.CalledProcessError:
-        raise report.ReportableError("""Error occurred in Python: could not debug this version of Python.
+        raise report.ReportableError(
+            """Error occurred in Python: could not debug this version of Python.
                                      
-            You may need to install Python development headers for this version.""")
+            You may need to install Python development headers for this version."""
+        )
     output = subprocess.check_output(
         [python_executable, "find_so.py", cache_dir], text=True, cwd=root
     )
@@ -87,6 +101,7 @@ def require() -> None:
     """
     if not debuggee.symbol_exists(STATE_STRUCT):
         raise report.ReportableError(messages.UBEACON_REQUIRED)
+
 
 @contextlib.contextmanager
 def startup_file() -> Iterator[Path]:
@@ -135,6 +150,7 @@ T = TypeVar("T", bound=pydantic.BaseModel)
 A generic type for use with `_call_dump_function`
 """
 
+
 def _call_dump_function(func_name: str, model_type: Type[T]) -> T:
     """
     Call any ubeacon function that writes a temporary file filed with JSON data.
@@ -181,16 +197,20 @@ class Frame(pydantic.BaseModel):
         Stringifies this `Frame` object in a way familiar to Python developers.
         """
         try:
-            contents = get_source_file_content(self.file_name, line_nos=False, highlight=True)
+            contents = get_source_file_content(
+                self.file_name, line_nos=False, highlight=True
+            )
             source_lines = contents.splitlines()
             source_line = source_lines[self.line - 1]
         except Exception:
             source_line = "<no source available>"
 
-        return "\n".join([
-            f"  #{self.frame_no} File \"{self.file_name}\", line {self.line}, in {self.func_name}",
-            f"    {source_line.lstrip()}",
-        ])
+        return "\n".join(
+            [
+                f'  #{self.frame_no} File "{self.file_name}", line {self.line}, in {self.func_name}',
+                f"    {source_line.lstrip()}",
+            ]
+        )
 
 
 class Backtrace(pydantic.BaseModel):
@@ -200,6 +220,7 @@ class Backtrace(pydantic.BaseModel):
     This Pydantic model is used to deserialize the JSON object delivered by the
     `s_ubeacon_backtrace_json()` function in the UBeacon C library.
     """
+
     frames: list[Frame]
 
     def __str__(self) -> str:
@@ -209,10 +230,12 @@ class Backtrace(pydantic.BaseModel):
         if len(self) == 0:
             return "No Python traceback available."
         else:
-            return "\n".join([
-                "Traceback (most recent call first):",
-                *[str(frame) for frame in self.frames],
-            ])
+            return "\n".join(
+                [
+                    "Traceback (most recent call first):",
+                    *[str(frame) for frame in self.frames],
+                ]
+            )
 
     def __len__(self) -> int:
         return len(self.frames)
@@ -228,7 +251,9 @@ def get_cached_source_file_content(file_name: Path) -> str:
 
 
 @functools.cache
-def get_source_file_content(file_name: Path, line_nos: bool = False, highlight: bool = False) -> str:
+def get_source_file_content(
+    file_name: Path, line_nos: bool = False, highlight: bool = False
+) -> str:
     """
     Opens, reads and returns a file from the local machine.
 
@@ -258,6 +283,7 @@ class Local(pydantic.BaseModel):
     def __str__(self) -> str:
         return f"{self.name} = {self.value}"
 
+
 class LocalList(pydantic.BaseModel):
     locals: list[Local]
 
@@ -265,10 +291,12 @@ class LocalList(pydantic.BaseModel):
         if len(self) == 0:
             return "No locals."
         else:
-            return "\n".join([
-                "Locals:",
-                *[f" {local}" for local in self.locals],
-            ])
+            return "\n".join(
+                [
+                    "Locals:",
+                    *[f" {local}" for local in self.locals],
+                ]
+            )
 
     def __len__(self) -> int:
         return len(self.locals)
@@ -289,25 +317,32 @@ def stop_message() -> str:
         return "No Python frame."
     return str(state.backtrace.frames[0])
 
+
 def one_frame_up() -> str:
     current_frame = int(gdb.parse_and_eval("s_ubeacon")["current_frame"])
     return f"{STATE_STRUCT}.returned_from == {current_frame}"
+
 
 def stay_in_frame() -> str:
     current_frame = int(gdb.parse_and_eval("s_ubeacon")["current_frame"])
     return f"{STATE_STRUCT}.current_frame == {current_frame}"
 
+
 def exception_origin(exception_name: str | None) -> str:
     exception_origin = f"(uint32_t){STATE_STRUCT}.exception_origin == 1"
 
     if exception_name:
-        exception_type = f"{STATE_STRUCT}.exception_type_id == {_simple_hash(exception_name)}"
+        exception_type = (
+            f"{STATE_STRUCT}.exception_type_id == {_simple_hash(exception_name)}"
+        )
         return f"{exception_type} && {exception_origin}"
     else:
         return exception_origin
 
+
 def first_line_of_file() -> str:
     return f"{STATE_STRUCT}.current_line == 1"
+
 
 def _simple_hash(data_str: str) -> int:
     """
@@ -317,8 +352,8 @@ def _simple_hash(data_str: str) -> int:
     integer in a way that's reasonably unlikely to collide. We do this as we can't set
     conditional breakpoints on string comparisons.
     """
-    hash = 0xcbf29ce484222325
-    prime = 0x100000001b3
+    hash = 0xCBF29CE484222325
+    prime = 0x100000001B3
     for c in data_str:
         hash ^= ord(c)
         hash *= prime
@@ -350,7 +385,9 @@ class _BreakpointInternal(gdb.Breakpoint):
 
 @contextlib.contextmanager
 def InternalBreakpoint(
-    show_message: bool = True, condition: str | None = None, location: str = LINE_FN,
+    show_message: bool = True,
+    condition: str | None = None,
+    location: str = LINE_FN,
 ) -> Iterator[_BreakpointInternal]:
     """
     Context manager for breakpoints used for programatic interaction with Python code.
@@ -367,10 +404,12 @@ def InternalBreakpoint(
         if hit and show_message:
             report.user(stop_message())
 
+
 class ExternalBreakpoint(gdb.Breakpoint):
     """
     Represents a Python breakpoint that will be visible to the user.
     """
+
     INDEX = 1
 
     def __init__(self) -> None:
@@ -408,7 +447,7 @@ class FileLineBreakpoint(ExternalBreakpoint):
     """
     Describes a Python breakpoint on a file and line number.
     """
-    
+
     def __init__(self, file: str, line: int) -> None:
         # Setup the GDB breakpoint class
         super().__init__()
@@ -421,8 +460,12 @@ class FileLineBreakpoint(ExternalBreakpoint):
     def _build_condition(self) -> str:
         ubeacon = gdb.parse_and_eval("s_ubeacon")
         file_hash = _simple_hash(self._file)
-        line_cond = f"*(uint64_t *){int(ubeacon['current_line'].address)} == {self._line}"
-        file_cond = f"*(uint64_t *){int(ubeacon['current_file_id'].address)} == {file_hash}"
+        line_cond = (
+            f"*(uint64_t *){int(ubeacon['current_line'].address)} == {self._line}"
+        )
+        file_cond = (
+            f"*(uint64_t *){int(ubeacon['current_file_id'].address)} == {file_hash}"
+        )
         return f"{line_cond} && {file_cond}"
 
     def stop(self) -> bool:
@@ -437,11 +480,12 @@ class FileLineBreakpoint(ExternalBreakpoint):
     def __str__(self) -> str:
         return f"{self._file}:{self._line}"
 
+
 class FunctionBreakpoint(ExternalBreakpoint):
     """
     Describes a Python breakpoint on a function.
     """
-    
+
     def __init__(self, func: str) -> None:
         # Setup the GDB breakpoint class
         super().__init__()
@@ -453,7 +497,9 @@ class FunctionBreakpoint(ExternalBreakpoint):
     def _build_condition(self) -> str:
         ubeacon = gdb.parse_and_eval("s_ubeacon")
         func_hash = _simple_hash(self._func)
-        func_cond = f"*(uint64_t *){int(ubeacon['current_func_id'].address)} == {func_hash}"
+        func_cond = (
+            f"*(uint64_t *){int(ubeacon['current_func_id'].address)} == {func_hash}"
+        )
         first_line_cond = f"*(uint64_t *){int(ubeacon['first_line'].address)} == 1"
         return f"{func_cond} && {first_line_cond}"
 
@@ -469,15 +515,18 @@ class FunctionBreakpoint(ExternalBreakpoint):
     def __str__(self) -> str:
         return f"{self._func} ()"
 
+
 def ready():
     gdb.events.stop.connect(_stop_handler)
     global active
     active = True
 
+
 def clear():
     gdb.events.stop.disconnect(_stop_handler)
     global active
     active = False
+
 
 def _stop_handler(event: gdb.StopEvent):
     """GDB event handler called when execution stops."""
@@ -488,6 +537,7 @@ def _stop_handler(event: gdb.StopEvent):
 
 breakpoints: list[gdb.Breakpoint] = []
 active: bool = False
+
 
 class DebuggeeState:
     """(Cached) state of the debuggee."""
@@ -523,5 +573,6 @@ class DebuggeeState:
         """
         self._backtrace = None
         self.locals = LocalList(locals=[])
+
 
 state = DebuggeeState()

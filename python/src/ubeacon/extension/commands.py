@@ -6,7 +6,11 @@ import gdb  # pyright: ignore[reportMissingModuleSource]
 from src.udbpy import engine  # pyright: ignore[reportMissingModuleSource]
 from src.udbpy import report  # pyright: ignore[reportMissingModuleSource]
 from src.udbpy.gdb_extensions import (  # pyright: ignore[reportMissingModuleSource]
-    command, command_args, gdbutils, udb_base)
+    command,
+    command_args,
+    gdbutils,
+    udb_base,
+)
 
 from . import debuggee, messages, ubeacon, ui
 
@@ -49,9 +53,13 @@ command.register_prefix(
     aliases=["upy inf", "upy i"],
 )
 
+
 def check_active() -> None:
     if not ubeacon.active:
-        raise report.ReportableError('UDB Python debugging is not enabled. Type "upy start" to start recording.')
+        raise report.ReportableError(
+            'UDB Python debugging is not enabled. Type "upy start" to start recording.'
+        )
+
 
 @command.register(gdb.COMMAND_STATUS, repeat=False)
 def uexperimental__python__status(udb: udb_base.Udb) -> None:
@@ -66,7 +74,9 @@ def uexperimental__python__status(udb: udb_base.Udb) -> None:
     """
 
     execution_mode = udb.get_execution_mode()
-    recording_or_replaying = execution_mode == engine.ExecutionMode.RECORDING or execution_mode.replaying
+    recording_or_replaying = (
+        execution_mode == engine.ExecutionMode.RECORDING or execution_mode.replaying
+    )
 
     if not recording_or_replaying:
         mode_message = execution_mode.value.message
@@ -79,7 +89,9 @@ def uexperimental__python__status(udb: udb_base.Udb) -> None:
             msg = messages.STATUS_NOT_PYTHON
         case debuggee.PythonState.NOT_INITIALIZED:
             msg = messages.STATUS_PYTHON_NEEDS_INIT
-        case debuggee.PythonState.INITIALIZED if not debuggee.symbol_exists("s_ubeacon"):
+        case debuggee.PythonState.INITIALIZED if not debuggee.symbol_exists(
+            "s_ubeacon"
+        ):
             msg = messages.STATUS_PYTHON_READY
         case _:
             msg = messages.STATUS_UBEACON_LOADED
@@ -109,7 +121,7 @@ def uexperimental__python__record(udb: udb_base.Udb) -> None:
         raise report.ReportableError(messages.STATUS_PYTHON_READY)
 
     if debuggee.symbol_exists("s_ubeacon"):
-        return # ubecaon library already injected, do nothing
+        return  # ubecaon library already injected, do nothing
 
     @contextlib.contextmanager
     def aquire_python_gil() -> Iterator[None]:
@@ -131,12 +143,14 @@ def uexperimental__python__record(udb: udb_base.Udb) -> None:
         handle = fopen(filename_ptr, open_args_ptr)
         assert handle > 0, "Failed to open file"
         PyRun_SimpleFileEx = debuggee.Function.from_symbol("PyRun_SimpleFileEx")
-        PyRun_SimpleFileEx(handle, filename_ptr, 1) # This closes the open file.
+        PyRun_SimpleFileEx(handle, filename_ptr, 1)  # This closes the open file.
 
     ubeacon.ready()
 
 
-@command.register(gdb.COMMAND_RUNNING, repeat=False, arg_parser=command_args.Untokenized())
+@command.register(
+    gdb.COMMAND_RUNNING, repeat=False, arg_parser=command_args.Untokenized()
+)
 def uexperimental__python__run(udb: udb_base.Udb, args: str) -> None:
     """
     Run a Python application and enable Python recording.
@@ -164,7 +178,9 @@ def uexperimental__python__attach(udb: udb_base.Udb, pid: str) -> None:
     gdb.execute("upy record")
 
 
-@command.register(gdb.COMMAND_RUNNING, repeat=False, arg_parser=command_args.Untokenized())
+@command.register(
+    gdb.COMMAND_RUNNING, repeat=False, arg_parser=command_args.Untokenized()
+)
 def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
     """
     Start a Python application and enable Python recording.
@@ -176,7 +192,10 @@ def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
     initialization has begun.
     """
     init_functions = [
-        "Py_Initialize", "Py_InitializeEx", "_Py_InitializeMain", "Py_InitializeFromConfig",
+        "Py_Initialize",
+        "Py_InitializeEx",
+        "_Py_InitializeMain",
+        "Py_InitializeFromConfig",
     ]
     init_breakpoints: dict[str, gdb.Breakpoint] = {}
 
@@ -197,13 +216,15 @@ def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
         """
         for init_function in init_functions:
             if not debuggee.symbol_exists(init_function):
-                continue # The symbol doesn't exist yet.
+                continue  # The symbol doesn't exist yet.
 
             if init_function in init_breakpoints.keys():
-                continue # We've already set this init breakpoint
+                continue  # We've already set this init breakpoint
 
             report.dev2(f"Setting init breakpoint: {init_function}")
-            init_breakpoints[init_function] = gdb.Breakpoint(init_function, internal=True)
+            init_breakpoints[init_function] = gdb.Breakpoint(
+                init_function, internal=True
+            )
             init_breakpoints[init_function].silent = True
 
         all_init_breakpoints_set = len(init_functions) == len(init_breakpoints)
@@ -222,7 +243,9 @@ def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
             # This probably means a signal, just stop and display the signal to the user
             return
 
-        init_breakpoint_hit = list(set(event.breakpoints) & set(init_breakpoints.values()))
+        init_breakpoint_hit = list(
+            set(event.breakpoints) & set(init_breakpoints.values())
+        )
         if not init_breakpoint_hit:
             return
 
@@ -236,7 +259,9 @@ def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
         finish_breakpoint.silent = True
         udb.execution.cont()
 
-        assert debuggee.python_state() == debuggee.PythonState.INITIALIZED, debuggee.python_state()
+        assert (
+            debuggee.python_state() == debuggee.PythonState.INITIALIZED
+        ), debuggee.python_state()
 
     with gdbutils.breakpoints_suspended():
         gdb.events.new_objfile.connect(enable_init_breakpoints)
@@ -244,7 +269,6 @@ def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
         enable_init_breakpoints(None)
         gdb.execute(f"run {args}")
         gdb.execute("upy record")
-
 
         with ubeacon.InternalBreakpoint(condition="s_ubeacon.current_file[0] != '<'"):
             gdb.execute("continue")
@@ -255,9 +279,9 @@ def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
 def _goto_boundry_internal(start: bool = True, show_message: bool = True) -> None:
     # TODO: what happens if we can't find any python code?
     with (
-            gdbutils.breakpoints_suspended(),
-            debuggee.allow_pending(),
-            ubeacon.InternalBreakpoint(show_message=show_message)
+        gdbutils.breakpoints_suspended(),
+        debuggee.allow_pending(),
+        ubeacon.InternalBreakpoint(show_message=show_message),
     ):
         if start:
             gdb.execute("ugo start", to_string=True)
@@ -285,9 +309,11 @@ def uexperimental__python__go__end(udb: udb_base.Udb) -> None:
     _goto_boundry_internal(start=False)
 
 
-@command.register(gdb.COMMAND_STACK,
-                  aliases=["uexperimental python where", "uexperimental python bt"],
-                  repeat=False)
+@command.register(
+    gdb.COMMAND_STACK,
+    aliases=["uexperimental python where", "uexperimental python bt"],
+    repeat=False,
+)
 def uexperimental__python__backtrace(udb: udb_base.Udb) -> None:
     """
     Print backtrace of all Python stack frames.
@@ -332,14 +358,18 @@ def uexperimental__python__reverse_step(udb: udb_base.Udb) -> None:
     _step_internal(udb.execution.reverse_cont)
 
 
-def _finish_internal(move_fn: Callable[[], None], location: str = ubeacon.RET_FN) -> None:
+def _finish_internal(
+    move_fn: Callable[[], None], location: str = ubeacon.RET_FN
+) -> None:
     # In a finish operation we want to run to the next line in the current frame, OR to the
     # first line after this frame (i.e. after function return). We set breakpoints on those two
     # things here.
     stay_in_frame = ubeacon.stay_in_frame()
     step_off_return = False
     with (
-        ubeacon.InternalBreakpoint(location=location, condition=stay_in_frame) as next_return,
+        ubeacon.InternalBreakpoint(
+            location=location, condition=stay_in_frame
+        ) as next_return,
     ):
         move_fn()
         if next_return.hit:
@@ -358,7 +388,10 @@ def uexperimental__python__finish(udb: udb_base.Udb) -> None:
     _finish_internal(move_fn=udb.execution.cont)
 
 
-@command.register(gdb.COMMAND_RUNNING, aliases=["uexperimental python rf", "uexperimental python rfin"])
+@command.register(
+    gdb.COMMAND_RUNNING,
+    aliases=["uexperimental python rf", "uexperimental python rfin"],
+)
 def uexperimental__python__reverse_finish(udb: udb_base.Udb) -> None:
     """
     Execute backward until just before the current Python stack frame was entered.
@@ -367,7 +400,10 @@ def uexperimental__python__reverse_finish(udb: udb_base.Udb) -> None:
     _finish_internal(move_fn=udb.execution.reverse_cont, location=ubeacon.CALL_FN)
 
 
-def _next_internal(move_fn: Callable[[], None], location: str = ubeacon.RET_FN, ) -> None:
+def _next_internal(
+    move_fn: Callable[[], None],
+    location: str = ubeacon.RET_FN,
+) -> None:
     # In a finish operation we want to run to the next line in the current frame, OR to the
     # first line after this frame (i.e. after function return). We set breakpoints on those two
     # things here.
@@ -375,11 +411,13 @@ def _next_internal(move_fn: Callable[[], None], location: str = ubeacon.RET_FN, 
     step_off_return = False
     with (
         ubeacon.InternalBreakpoint(condition=stay_in_frame) as next_line,
-        ubeacon.InternalBreakpoint(location=location, condition=stay_in_frame) as next_return,
+        ubeacon.InternalBreakpoint(
+            location=location, condition=stay_in_frame
+        ) as next_return,
     ):
         move_fn()
         if next_line.hit:
-            return # We hit another line in this function, we're done.
+            return  # We hit another line in this function, we're done.
         if next_return.hit:
             step_off_return = True
     if step_off_return:
@@ -395,6 +433,7 @@ def uexperimental__python__next(udb: udb_base.Udb) -> None:
     check_active()
     _next_internal(move_fn=udb.execution.cont)
 
+
 @command.register(gdb.COMMAND_RUNNING, aliases=["uexperimental python rn"])
 def uexperimental__python__reverse_next(udb: udb_base.Udb) -> None:
     """
@@ -404,7 +443,9 @@ def uexperimental__python__reverse_next(udb: udb_base.Udb) -> None:
     _next_internal(move_fn=udb.execution.reverse_cont)
 
 
-@command.register(gdb.COMMAND_BREAKPOINTS, aliases=[
+@command.register(
+    gdb.COMMAND_BREAKPOINTS,
+    aliases=[
         "uexperimental python b",
         "uexperimental python br",
         "uexperimental python bre",
@@ -521,19 +562,21 @@ def _exception_internal(
     with (
         gdbutils.breakpoints_suspended(),
         debuggee.allow_pending(),
-        ubeacon.InternalBreakpoint(location=ubeacon.EXCEPTION_FN, show_message=False) as next_exception,
+        ubeacon.InternalBreakpoint(
+            location=ubeacon.EXCEPTION_FN, show_message=False
+        ) as next_exception,
     ):
         next_exception.condition = ubeacon.exception_origin(exception_type)
         move_fn()
-    type_name= gdb.parse_and_eval("s_ubeacon.exception_type").string()
+    type_name = gdb.parse_and_eval("s_ubeacon.exception_type").string()
     report.user(f"Hit exception of type {type_name}")
     report.user(ubeacon.stop_message())
 
 
-
-@command.register(gdb.COMMAND_RUNNING,
-                  arg_parser=command_args.String(default=None))
-def uexperimental__python__go__exception__next(udb: udb_base.Udb, exception_type: str | None) -> None:
+@command.register(gdb.COMMAND_RUNNING, arg_parser=command_args.String(default=None))
+def uexperimental__python__go__exception__next(
+    udb: udb_base.Udb, exception_type: str | None
+) -> None:
     """
     Jump to the next thrown exception.
 
@@ -546,9 +589,10 @@ def uexperimental__python__go__exception__next(udb: udb_base.Udb, exception_type
     _exception_internal(udb.execution.cont, udb, exception_type)
 
 
-@command.register(gdb.COMMAND_RUNNING,
-                  arg_parser=command_args.String(default=None))
-def uexperimental__python__go__exception__prev(udb: udb_base.Udb, exception_type: str | None) -> None:
+@command.register(gdb.COMMAND_RUNNING, arg_parser=command_args.String(default=None))
+def uexperimental__python__go__exception__prev(
+    udb: udb_base.Udb, exception_type: str | None
+) -> None:
     """
     Jump to the previously thrown exception.
 
@@ -607,4 +651,3 @@ def uexperimental__python__reverse_continue(udb: udb_base.Udb) -> None:
     """
     check_active()
     gdb.execute("reverse-continue")
-
