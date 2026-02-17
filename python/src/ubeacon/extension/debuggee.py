@@ -3,17 +3,14 @@ This file contains functions and classes for inspecting and modifying the UDB de
 
 TODO: talk about whether functions modify or not
 """
-import gdb # ignore: mypy[import-untyped]
-
 import contextlib
 import functools
-
 from enum import Enum, auto
 from typing import Iterator
 
-from src.udbpy import report, ctrl_c, engine
+import gdb  # ignore: mypy[import-untyped]
+from src.udbpy import ctrl_c, engine, report
 from src.udbpy.gdb_extensions import gdbutils
-
 from undo.debugger_extensions import udb
 
 

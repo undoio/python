@@ -3,7 +3,6 @@ from typing import Callable
 
 import gdb
 
-
 # A pattern to match an ANSI escape sequence
 ANSI_PATTERN = re.compile(r"(\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]))")
 

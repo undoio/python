@@ -8,29 +8,26 @@ breakpoints on these trace functions which correspond to 'normal' debugging oper
 Python code (next/step/finish etc.).
 """
 
-import re
-import traceback
-import gdb  # pyright: ignore[reportMissingModuleSource]
-
 import contextlib
 import functools
-import subprocess
-import tempfile
 import json
 import os
-
-from typing import Type, TypeVar, Iterator, Callable
+import re
+import subprocess
+import tempfile
+import traceback
 from pathlib import Path
+from typing import Callable, Iterator, Type, TypeVar
 
+import gdb  # pyright: ignore[reportMissingModuleSource]
 import pydantic
 import pygments
-import pygments.lexers
 import pygments.formatters
-
-from src.udbpy import locations, report  # pyright: ignore[reportMissingModuleSource]
+import pygments.lexers
+from src.udbpy import (locations,  # pyright: ignore[reportMissingModuleSource]
+                       report)
 
 from . import debuggee, messages
-
 
 PREFIX = "s_ubeacon"
 STATE_STRUCT = PREFIX

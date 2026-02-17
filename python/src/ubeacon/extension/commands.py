@@ -1,13 +1,12 @@
-import gdb # pyright: ignore[reportMissingModuleSource]
-
-import functools
 import contextlib
-
+import functools
 from typing import Callable, Iterator
 
-from src.udbpy.gdb_extensions import command, command_args, udb_base, gdbutils  # pyright: ignore[reportMissingModuleSource]
+import gdb  # pyright: ignore[reportMissingModuleSource]
 from src.udbpy import engine  # pyright: ignore[reportMissingModuleSource]
 from src.udbpy import report  # pyright: ignore[reportMissingModuleSource]
+from src.udbpy.gdb_extensions import (  # pyright: ignore[reportMissingModuleSource]
+    command, command_args, gdbutils, udb_base)
 
 from . import debuggee, messages, ubeacon, ui
 

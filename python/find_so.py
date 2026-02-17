@@ -1,6 +1,6 @@
 # find_so.py
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from setuptools import Distribution, Extension
 from setuptools.command.build_ext import build_ext

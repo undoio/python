@@ -5,9 +5,9 @@ import sys
 from pathlib import Path
 
 import gdb  # pyright: ignore[reportMissingModuleSource]
-
 from src.udbpy import locations  # pyright: ignore[reportMissingModuleSource]
-from src.udbpy.gdb_extensions import command, udb_base  # pyright: ignore[reportMissingModuleSource]
+from src.udbpy.gdb_extensions import (  # pyright: ignore[reportMissingModuleSource]
+    command, udb_base)
 
 
 @functools.cache

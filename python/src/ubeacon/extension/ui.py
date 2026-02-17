@@ -3,7 +3,7 @@ import os
 
 import gdb
 
-from . import ubeacon, tui_windows
+from . import tui_windows, ubeacon
 
 
 @tui_windows.register_window("python-source")
