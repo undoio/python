@@ -320,7 +320,7 @@ def uexperimental__python__backtrace(udb: udb_base.Udb) -> None:
     """
     check_active()
 
-    if udb.get_current_tid() != udb.threads.ids(gdb.selected_thread()).tid:
+    if udb.get_current_tid() != udb.threads.ids(udb.threads.selected()).tid:
         raise report.ReportableError("Can only backtrace the current thread.")
 
     report.user(ubeacon.state.backtrace)
