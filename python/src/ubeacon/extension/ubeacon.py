@@ -536,7 +536,7 @@ def _stop_handler(event: gdb.StopEvent) -> None:
     state.clear()
 
 
-breakpoints: list[gdb.Breakpoint] = []
+breakpoints: list[ExternalBreakpoint] = []
 active: bool = False
 
 
