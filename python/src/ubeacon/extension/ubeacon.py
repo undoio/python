@@ -462,10 +462,10 @@ class FileLineBreakpoint(ExternalBreakpoint):
         ubeacon = gdb.parse_and_eval("s_ubeacon")
         file_hash = _simple_hash(self._file)
         line_cond = (
-            f"*(uint64_t *){int(ubeacon['current_line'].address)} == {self._line}"
+            f"*(uint64_t *){debuggee.get_symbol_address('current_line')} == {self._line}"
         )
         file_cond = (
-            f"*(uint64_t *){int(ubeacon['current_file_id'].address)} == {file_hash}"
+            f"*(uint64_t *){debuggee.get_symbol_address('current_file_id')} == {file_hash}"
         )
         return f"{line_cond} && {file_cond}"
 
@@ -499,9 +499,9 @@ class FunctionBreakpoint(ExternalBreakpoint):
         ubeacon = gdb.parse_and_eval("s_ubeacon")
         func_hash = _simple_hash(self._func)
         func_cond = (
-            f"*(uint64_t *){int(ubeacon['current_func_id'].address)} == {func_hash}"
+            f"*(uint64_t *){debuggee.get_symbol_address('current_func_id')} == {func_hash}"
         )
-        first_line_cond = f"*(uint64_t *){int(ubeacon['first_line'].address)} == 1"
+        first_line_cond = f"*(uint64_t *){debuggee.get_symbol_address('first_line')} == 1"
         return f"{func_cond} && {first_line_cond}"
 
     def stop(self) -> bool:
