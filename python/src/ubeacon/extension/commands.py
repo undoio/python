@@ -575,7 +575,7 @@ def _exception_internal(
     report.user(ubeacon.stop_message())
 
 
-@command.register(gdb.COMMAND_RUNNING, arg_parser=command_args.String(default=None))
+@command.register(gdb.COMMAND_RUNNING, arg_parser=command_args.String(default=""))
 def uexperimental__python__go__exception__next(
     udb: udb_base.Udb, exception_type: str | None
 ) -> None:
@@ -591,7 +591,7 @@ def uexperimental__python__go__exception__next(
     _exception_internal(udb.execution.cont, udb, exception_type)
 
 
-@command.register(gdb.COMMAND_RUNNING, arg_parser=command_args.String(default=None))
+@command.register(gdb.COMMAND_RUNNING, arg_parser=command_args.String(default=""))
 def uexperimental__python__go__exception__prev(
     udb: udb_base.Udb, exception_type: str | None
 ) -> None:

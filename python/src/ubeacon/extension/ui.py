@@ -7,7 +7,6 @@ from . import tui_windows, ubeacon
 
 from src.udbpy.gdb_extensions import gdbutils  # pyright: ignore[reportMissingModuleSource]
 
-
 @tui_windows.register_window("python-source")
 class PythonSourceWindow(tui_windows.ScrollableWindow):
     title = "Python Source"

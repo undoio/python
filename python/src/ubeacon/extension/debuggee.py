@@ -248,7 +248,6 @@ def temporary_memory(addr: int, data: list[int]) -> Iterator[None]:
     )
     gdbutils.execute_to_string(restore_cmd)
 
-
 def get_symbol_address(symbol_name: str) -> int:
     """
     Get the address of a symbol in the debuggee.
@@ -266,7 +265,6 @@ def get_symbol_address(symbol_name: str) -> int:
     except Exception:
         print(f"Couldn't find symbol: {symbol_name}")
         raise
-
 
 class Function:
     @classmethod
