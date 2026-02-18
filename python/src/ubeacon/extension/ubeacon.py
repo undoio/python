@@ -45,8 +45,8 @@ def build() -> Path:
     assert debuggee.is_python()
     progspace = gdb.current_progspace()
     assert progspace is not None
-    assert progspace.executable_filename is not None
-    python_executable = progspace.executable_filename
+    assert progspace.executable_filename is not None  # type: ignore[attr-defined]
+    python_executable = progspace.executable_filename  # type: ignore[attr-defined]
     root = Path(__file__).resolve().parent.parent.parent.parent
 
     # location of built library
@@ -375,7 +375,7 @@ class _BreakpointInternal(gdb.Breakpoint):
     def hit(self) -> bool:
         return self.hit_count > 0
 
-    def delete(self):
+    def delete(self) -> None:
         if self.hit and self.follow_up:
             self.enabled = False
             self.follow_up()
@@ -516,19 +516,19 @@ class FunctionBreakpoint(ExternalBreakpoint):
         return f"{self._func} ()"
 
 
-def ready():
+def ready() -> None:
     gdb.events.stop.connect(_stop_handler)
     global active
     active = True
 
 
-def clear():
+def clear() -> None:
     gdb.events.stop.disconnect(_stop_handler)
     global active
     active = False
 
 
-def _stop_handler(event: gdb.StopEvent):
+def _stop_handler(event: gdb.StopEvent) -> None:
     """GDB event handler called when execution stops."""
 
     # The cached debuggee state may no longer be valid, so clear it.

@@ -3,6 +3,8 @@ from typing import Callable
 
 import gdb
 
+from src.udbpy.gdb_extensions import gdbtypes
+
 # A pattern to match an ANSI escape sequence
 ANSI_PATTERN = re.compile(r"(\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]))")
 
@@ -69,7 +71,7 @@ def register_window(name: str) -> Callable:
     Create a decorator to register a TUI window class and define a new layout for it.
     """
 
-    def decorator(cls):
+    def decorator(cls: type) -> type:
         gdb.register_window_type(name, cls)
         gdb.execute(f"tui new-layout {name} {name} 1 status 1 cmd 1")
         return cls
@@ -88,13 +90,14 @@ class ScrollableWindow:
 
     title: str | None = None
 
-    def __init__(self, tui_window) -> None:
+    def __init__(self, tui_window: gdbtypes.InternalTuiWindow) -> None:
         self._tui_window = tui_window
-        self._tui_window.title = self.title
+        if self.title:
+            self._tui_window.title = self.title
 
         # When scrolling we use cached lines to avoid regenerating the content.
         self.use_cached_lines = False
-        self.cached_lines = None
+        self.cached_lines: tuple[list[str], int, int] | None = None
         self.vscroll_offset = 0
         self.hscroll_offset = 0
 

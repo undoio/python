@@ -11,7 +11,7 @@ class PythonSourceWindow(tui_windows.ScrollableWindow):
     title = "Python Source"
     no_src_msg = "No source code available"
 
-    def get_content(self):
+    def get_content(self) -> str:
         try:
             if len(ubeacon.state.backtrace.frames) == 0:
                 return self.no_src_msg
@@ -40,7 +40,7 @@ class PythonSourceWindow(tui_windows.ScrollableWindow):
 class PythonBacktraceWindow(tui_windows.ScrollableWindow):
     title = "Python Backtrace"
 
-    def get_content(self):
+    def get_content(self) -> str:
         return gdb.execute("upy bt", to_string=True)
 
 
@@ -48,7 +48,7 @@ class PythonBacktraceWindow(tui_windows.ScrollableWindow):
 class PythonLocalsWindow(tui_windows.ScrollableWindow):
     title = "Local Python Variables"
 
-    def get_content(self):
+    def get_content(self) -> str:
         return gdb.execute("upy info locals", to_string=True)
 
 

@@ -23,7 +23,7 @@ def symbol_exists(symbol_name: str) -> bool:
         return False
 
 
-def disable_volatile_warning_maybe():
+def disable_volatile_warning_maybe() -> contextlib.AbstractContextManager[None]:
     """
     Context manager to disable the volatile mode warning in GDB when evaluating expressions.
 
@@ -95,7 +95,7 @@ def python_state() -> PythonState:
 
 
 @contextlib.contextmanager
-def allow_pending():
+def allow_pending() -> Iterator[None]:
     output = gdb.execute("show breakpoint pending", to_string=True)
     was_on = "on" in output.lower()
 
@@ -197,7 +197,7 @@ class _GeneralRegisters:
     def initial_pc(self) -> int:
         return self._initial_regs["rip"]
 
-    def restore(self):
+    def restore(self) -> None:
         """
         Restore the registers to the state they were in when this class instance was initialized.
         """
