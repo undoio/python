@@ -129,7 +129,7 @@ def general_registers() -> dict[str, int]:
     """
     arch = gdb.selected_inferior().architecture()
     reg_names = [x.name for x in arch.registers("general")]
-    frame = gdb.newest_frame()
+    frame = gdbutils.newest_frame()
     reg_values = {}
     for reg_name in reg_names:
         reg_value = frame.read_register(reg_name)
@@ -181,7 +181,7 @@ class _GeneralRegisters:
         Get the current value of a register.
         """
         assert key in self._initial_regs.keys(), f"Unknown key: {key}"
-        value = gdb.newest_frame().read_register(key)
+        value = gdbutils.newest_frame().read_register(key)
         report.dev2(f"Read register {key}={value}")
         return int(value)
 
