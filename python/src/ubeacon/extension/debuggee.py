@@ -305,7 +305,7 @@ class Function:
 
     @functools.cache  # pylint: disable=method-cache-max-size-none
     def _find_executable_space(self, length: int) -> int:
-        # this is lifted straigt from out engnie implementation of info prog maps
+        # this is lifted straight from out engine implementation of `info proc maps`
         maps = []
         with ctrl_c.deferred():
             udb.gdbserial.send("vUDB;get_debuggee_maps")

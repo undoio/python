@@ -1,5 +1,5 @@
 """
-Functions and classes for interacting with the UBecaon record time library.
+Functions and classes for interacting with the UBeacon record time library.
 
 The UBeacon library is a Python library written with the CPython C API. This library needs
 to be loaded into the debuggee at record time, and it inserts hooks at various points into

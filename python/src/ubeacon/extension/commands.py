@@ -120,7 +120,7 @@ def uexperimental__python__record(udb: udb_base.Udb) -> None:
         raise report.ReportableError(messages.STATUS_PYTHON_READY)
 
     if debuggee.symbol_exists("s_ubeacon"):
-        return  # ubecaon library already injected, do nothing
+        return  # library already injected, do nothing
 
     @contextlib.contextmanager
     def aquire_python_gil() -> Iterator[None]:
@@ -156,7 +156,7 @@ def uexperimental__python__run(udb: udb_base.Udb, args: str) -> None:
 
     USAGE: upy run [args]
 
-    This function is the Python equivalent of UDB's `run` command, it will start the debuggee and
+    This function is the Python equivalent of UDB's `run` command. It will start the debuggee and
     the `args` will be passed to the application being run.
     """
     gdbutils.execute_to_string(f"upy start {args}")
@@ -170,7 +170,7 @@ def uexperimental__python__attach(udb: udb_base.Udb, pid: str) -> None:
 
     USAGE: upy attach [pid]
 
-    This command is the Python equivalent of UDB's `attach` command, it will attach to the
+    This command is the Python equivalent of UDB's `attach` command. It will attach to the
     interpreter, start recording, and enable Python debugging.
     """
     gdb.execute(f"attach {pid}")
@@ -186,7 +186,7 @@ def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
 
     USAGE: upy start [args]
 
-    This function is the Python equivalent of UDB's `start` command, it will start the debuggee, the
+    This function is the Python equivalent of UDB's `start` command. It will start the debuggee, the
     `args` will be passed to the application being started, and the interpreter will stop once
     initialization has begun.
     """
@@ -275,7 +275,7 @@ def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
     report.user("Python has been initialized.")
 
 
-def _goto_boundry_internal(start: bool = True, show_message: bool = True) -> None:
+def _goto_boundary_internal(start: bool = True, show_message: bool = True) -> None:
     # TODO: what happens if we can't find any python code?
     with (
         gdbutils.breakpoints_suspended(),
@@ -296,7 +296,7 @@ def uexperimental__python__go__start(udb: udb_base.Udb) -> None:
     Jump to the first line of Python code executed.
     """
     check_active()
-    _goto_boundry_internal(start=True)
+    _goto_boundary_internal(start=True)
 
 
 @command.register(gdb.COMMAND_RUNNING, repeat=False)
@@ -305,7 +305,7 @@ def uexperimental__python__go__end(udb: udb_base.Udb) -> None:
     Jump to the last line of Python code executed.
     """
     check_active()
-    _goto_boundry_internal(start=False)
+    _goto_boundary_internal(start=False)
 
 
 @command.register(
@@ -558,7 +558,7 @@ def _exception_internal(
     move_fn: Callable[[], None], udb: udb_base.Udb, exception_type: str | None
 ) -> None:
     if not debuggee.symbol_exists(ubeacon.STATE_STRUCT):
-        _goto_boundry_internal(start=True, show_message=False)
+        _goto_boundary_internal(start=True, show_message=False)
 
     with (
         gdbutils.breakpoints_suspended(),
