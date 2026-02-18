@@ -190,12 +190,16 @@ def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
     `args` will be passed to the application being started, and the interpreter will stop once
     initialization has begun.
     """
-    init_functions = [
-        "Py_Initialize",
-        "Py_InitializeEx",
-        "_Py_InitializeMain",
-        "Py_InitializeFromConfig",
-    ]
+
+    if udb.get_execution_mode().has_loaded_recording:
+        init_functions = [ubeacon.LINE_FN]
+    else:
+        init_functions = [
+            "Py_Initialize",
+            "Py_InitializeEx",
+            "_Py_InitializeMain",
+            "Py_InitializeFromConfig",
+        ]
     init_breakpoints: dict[str, gdb.Breakpoint] = {}
 
     def enable_init_breakpoints(event: gdb.NewObjFileEvent | None) -> None:
@@ -266,8 +270,12 @@ def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
         gdb.events.new_objfile.connect(enable_init_breakpoints)
         gdb.events.stop.connect(complete_initialization)
         enable_init_breakpoints(None)
-        gdb.execute(f"run {args}")
-        gdb.execute("upy record")
+        if udb.get_execution_mode().has_loaded_recording:
+            gdb.execute("continue")
+            ubeacon.ready()
+        else:
+            gdb.execute(f"run {args}")
+            gdb.execute("upy record")
 
         with ubeacon.internal_breakpoint(condition="s_ubeacon.current_file[0] != '<'"):
             gdb.execute("continue")
