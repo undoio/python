@@ -96,7 +96,7 @@ def python_state() -> PythonState:
 
 @contextlib.contextmanager
 def allow_pending() -> Iterator[None]:
-    output = gdb.execute("show breakpoint pending", to_string=True)
+    output = gdbutils.execute_to_string("show breakpoint pending")
     was_on = "on" in output.lower()
 
     gdb.execute("set breakpoint pending on")
@@ -162,7 +162,7 @@ def injected_string(data: str) -> Iterator[int]:
 
     result = malloc(c_str_len)
     report.dev2(f"Malloc done: {data!r}, {result}")
-    gdb.execute(f'set {{char[{c_str_len}]}}{result} = "{data}"', to_string=True)
+    gdbutils.execute_to_string(f'set {{char[{c_str_len}]}}{result} = "{data}"')
     yield result
     free(result)
     report.dev2(f"Free done: {data!r}")
@@ -191,7 +191,7 @@ class _GeneralRegisters:
         """
         report.dev2(f"Setting register {key} to 0x{value:x}")
         assert key in self._initial_regs.keys(), f"Unknown key: {key}"
-        gdb.execute(f"set ${key}=0x{value:x}", to_string=True)
+        gdbutils.execute_to_string(f"set ${key}=0x{value:x}")
 
     @property
     def initial_pc(self) -> int:
@@ -204,7 +204,7 @@ class _GeneralRegisters:
         report.dev2(f"Restoring registers to {self._initial_regs}")
         for name, value in self._initial_regs.items():
             report.dev2(f"setting register {name}={value}")
-            gdb.execute(f"set ${name}={value}", to_string=True)
+            gdbutils.execute_to_string(f"set ${name}={value}")
 
 
 @contextlib.contextmanager
@@ -234,19 +234,19 @@ def temporary_memory(addr: int, data: list[int]) -> Iterator[None]:
     """
 
     read_cmd = f"print/d *(unsigned char*){hex(addr)}@{len(data)}"
-    orig_data_str = gdb.execute(read_cmd, to_string=True)
+    orig_data_str = gdbutils.execute_to_string(read_cmd)
     orig_data = [int(x) for x in orig_data_str.split("=")[-1].strip()[1:-1].split(",")]
     write_cmd = (
         f"set {{char[{len(data)}]}} {hex(addr)} = {{" + ", ".join(map(str, data)) + "}"
     )
-    gdb.execute(write_cmd, to_string=True)
+    gdbutils.execute_to_string(write_cmd)
     yield
     restore_cmd = (
         f"set {{char[{len(orig_data)}]}} {hex(addr)} = {{"
         + ", ".join(map(str, orig_data))
         + "}"
     )
-    gdb.execute(restore_cmd, to_string=True)
+    gdbutils.execute_to_string(restore_cmd)
 
 
 class Function:
@@ -342,7 +342,7 @@ class Function:
             x.silent = True
 
             gdb.execute(f"set $pc = {hex(addr)}")
-            gdb.execute("continue", to_string=True)
+            gdbutils.execute_to_string("continue")
 
             assert x.hit_count == 1, f"Call failed: 0x{self._addr:x}"
             x.delete()

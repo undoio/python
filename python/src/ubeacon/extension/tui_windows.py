@@ -3,7 +3,7 @@ from typing import Callable
 
 import gdb
 
-from src.udbpy.gdb_extensions import gdbtypes
+from src.udbpy.gdb_extensions import gdbtypes, gdbutils
 
 # A pattern to match an ANSI escape sequence
 ANSI_PATTERN = re.compile(r"(\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]))")
@@ -201,7 +201,7 @@ class LocalsWindow(ScrollableWindow):
     title = "Local Variables"
 
     def get_content(self) -> str:
-        return gdb.execute("info locals", to_string=True, styled=True)
+        return gdbutils.execute_to_string("info locals", styled=True)
 
 
 @register_window("backtrace")
@@ -209,7 +209,7 @@ class BacktraceWindow(ScrollableWindow):
     title = "Backtrace"
 
     def get_content(self) -> str:
-        return gdb.execute("backtrace", to_string=True, styled=True)
+        return gdbutils.execute_to_string("backtrace", styled=True)
 
 
 @register_window("threads")
@@ -217,7 +217,7 @@ class ThreadsWindow(ScrollableWindow):
     title = "Threads"
 
     def get_content(self) -> str:
-        return gdb.execute("info threads", to_string=True, styled=True)
+        return gdbutils.execute_to_string("info threads", styled=True)
 
 
 @register_window("breakpoints")
@@ -225,7 +225,7 @@ class BreakpointsWindow(ScrollableWindow):
     title = "Breakpoints"
 
     def get_content(self) -> str:
-        return gdb.execute("info breakpoints", to_string=True, styled=True)
+        return gdbutils.execute_to_string("info breakpoints", styled=True)
 
 
 @register_window("timeline")
@@ -233,7 +233,7 @@ class TimelineWindow(ScrollableWindow):
     title = "Timeline"
 
     def get_content(self) -> str:
-        return gdb.execute("info timeline", to_string=True, styled=True)
+        return gdbutils.execute_to_string("info timeline", styled=True)
 
 
 gdb.execute(

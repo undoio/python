@@ -25,6 +25,7 @@ import pygments
 import pygments.formatters
 import pygments.lexers
 from src.udbpy import locations, report  # pyright: ignore[reportMissingModuleSource]
+from src.udbpy.gdb_extensions import gdbutils  # pyright: ignore[reportMissingModuleSource]
 
 from . import debuggee, messages
 
@@ -175,7 +176,7 @@ def _call_dump_function(func_name: str, model_type: Type[T]) -> T:
 def evaluate(code: str) -> str:
     with tempfile.NamedTemporaryFile() as temp_file, debuggee.disable_volatile_warning_maybe():
         cmd = f'call {PREFIX}_interact_eval("{temp_file.name}", "{code}")'
-        gdb.execute(cmd, to_string=True)
+        gdbutils.execute_to_string(cmd)
         return Path(temp_file.name).read_text()
 
 

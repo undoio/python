@@ -5,6 +5,8 @@ import gdb
 
 from . import tui_windows, ubeacon
 
+from src.udbpy.gdb_extensions import gdbutils  # pyright: ignore[reportMissingModuleSource]
+
 
 @tui_windows.register_window("python-source")
 class PythonSourceWindow(tui_windows.ScrollableWindow):
@@ -41,7 +43,7 @@ class PythonBacktraceWindow(tui_windows.ScrollableWindow):
     title = "Python Backtrace"
 
     def get_content(self) -> str:
-        return gdb.execute("upy bt", to_string=True)
+        return gdbutils.execute_to_string("upy bt")
 
 
 @tui_windows.register_window("python-locals")
@@ -49,7 +51,7 @@ class PythonLocalsWindow(tui_windows.ScrollableWindow):
     title = "Local Python Variables"
 
     def get_content(self) -> str:
-        return gdb.execute("upy info locals", to_string=True)
+        return gdbutils.execute_to_string("upy info locals")
 
 
 # Define a layout with all Python windows

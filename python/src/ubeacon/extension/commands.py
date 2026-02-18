@@ -160,7 +160,7 @@ def uexperimental__python__run(udb: udb_base.Udb, args: str) -> None:
     This function is the Python equivalent of UDB's `run` command, it will start the debuggee and
     the `args` will be passed to the application being run.
     """
-    gdb.execute(f"upy start {args}", to_string=True)
+    gdbutils.execute_to_string(f"upy start {args}")
     gdb.execute("continue")
 
 
@@ -284,10 +284,10 @@ def _goto_boundry_internal(start: bool = True, show_message: bool = True) -> Non
         ubeacon.InternalBreakpoint(show_message=show_message),
     ):
         if start:
-            gdb.execute("ugo start", to_string=True)
+            gdbutils.execute_to_string("ugo start")
             gdb.execute("continue")
         else:
-            gdb.execute("ugo end", to_string=True)
+            gdbutils.execute_to_string("ugo end")
             gdb.execute("reverse-continue")
 
 
