@@ -249,6 +249,25 @@ def temporary_memory(addr: int, data: list[int]) -> Iterator[None]:
     gdbutils.execute_to_string(restore_cmd)
 
 
+def get_symbol_address(symbol_name: str) -> int:
+    """
+    Get the address of a symbol in the debuggee.
+
+    Args:
+        symbol_name: The name of the symbol to look up.
+
+    Returns:
+        The address of the symbol in the debuggee.
+    """
+    try:
+        addr_value = gdb.parse_and_eval(symbol_name).address
+        assert addr_value
+        return int(addr_value)
+    except Exception:
+        print(f"Couldn't find symbol: {symbol_name}")
+        raise
+
+
 class Function:
     @classmethod
     def from_symbol(cls, name: str) -> "Function":
@@ -260,7 +279,7 @@ class Function:
         """
         try:
             report.dev1(f"Setting up recorded call to: {name}")
-            addr = int(gdb.parse_and_eval(name).address)
+            addr = get_symbol_address(name)
             return cls(addr, name)
         except Exception:
             print(f"Couldn't find symbol: {name}")
