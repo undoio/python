@@ -466,19 +466,21 @@ def uexperimental__python__break(udb: udb_base.Udb, location: str) -> None:
     """
 
     check_active()
+    bp: ubeacon.ExternalBreakpoint
     is_file_line = ":" in location
     if is_file_line:
         file, line_str = location.split(":")
         line = int(line_str)
-        ubeacon.breakpoints.append(ubeacon.FileLineBreakpoint(file, line))
+        bp = ubeacon.FileLineBreakpoint(file, line)
     else:
         if not location:
             raise report.ReportableError(
                 "This command requires an argument. See `help upy break` for more information"
             )
-        ubeacon.breakpoints.append(ubeacon.FunctionBreakpoint(location))
+        bp = ubeacon.FunctionBreakpoint(location)
 
-    report.user(ubeacon.breakpoints[-1].set_message)
+    ubeacon.breakpoints.append(bp)
+    report.user(bp.set_message)
 
 
 @command.register(
