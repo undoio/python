@@ -1,11 +1,8 @@
-import functools
-import os
-
 import gdb
 
-from . import tui_windows, ubeacon
-
 from src.udbpy.gdb_extensions import gdbutils  # pyright: ignore[reportMissingModuleSource]
+
+from . import tui_windows, ubeacon
 
 @tui_windows.register_window("python-source")
 class PythonSourceWindow(tui_windows.ScrollableWindow):

@@ -11,13 +11,10 @@ Python code (next/step/finish etc.).
 import contextlib
 import functools
 import json
-import os
-import re
 import subprocess
 import tempfile
-import traceback
 from pathlib import Path
-from typing import Callable, Iterator, Type, TypeVar
+from typing import Iterator, Type, TypeVar
 
 import gdb  # pyright: ignore[reportMissingModuleSource]
 import pydantic
@@ -61,7 +58,8 @@ def build() -> Path:
         lib_path = Path(output)
         if lib_path.is_file():
             lib_dir = root / "src" / "ubeacon" / "lib"
-            # Check the timestamp of the library is newer than the source files, if not, we need to rebuild
+            # Check the timestamp of the library is newer than the source files
+            # if not, we need to rebuild
             lib_mtime = lib_path.stat().st_mtime
             source_files = list(lib_dir.glob("*.c")) + list(lib_dir.glob("*.h"))
             if all(lib_mtime > source.stat().st_mtime for source in source_files):
@@ -208,7 +206,8 @@ class Frame(pydantic.BaseModel):
 
         return "\n".join(
             [
-                f'  #{self.frame_no} File "{self.file_name}", line {self.line}, in {self.func_name}',
+                f'  #{self.frame_no} File "{self.file_name}",'
+                f' line {self.line}, in {self.func_name}',
                 f"    {source_line.lstrip()}",
             ]
         )
@@ -268,12 +267,12 @@ def get_source_file_content(
     if not line_nos and not highlight:
         return content
 
-    lexer = pygments.lexers.TextLexer()
+    lexer = pygments.lexers.TextLexer()  # pylint: disable=no-member
     if highlight:
-        lexer = pygments.lexers.PythonLexer(stripnl=False)
+        lexer = pygments.lexers.PythonLexer(stripnl=False)  # pylint: disable=no-member
 
     return pygments.highlight(
-        content, lexer, pygments.formatters.TerminalFormatter(linenos=line_nos)
+        content, lexer, pygments.formatters.TerminalFormatter(linenos=line_nos)  # pylint: disable=no-member
     )
 
 
@@ -353,13 +352,13 @@ def _simple_hash(data_str: str) -> int:
     integer in a way that's reasonably unlikely to collide. We do this as we can't set
     conditional breakpoints on string comparisons.
     """
-    hash = 0xCBF29CE484222325
+    hash_value = 0xCBF29CE484222325
     prime = 0x100000001B3
     for c in data_str:
-        hash ^= ord(c)
-        hash *= prime
-        hash &= 0xFFFFFFFFFFFFFFFF
-    return hash
+        hash_value ^= ord(c)
+        hash_value *= prime
+        hash_value &= 0xFFFFFFFFFFFFFFFF
+    return hash_value
 
 
 class _BreakpointInternal(gdb.Breakpoint):
@@ -367,7 +366,6 @@ class _BreakpointInternal(gdb.Breakpoint):
         with debuggee.allow_pending():
             super().__init__(location, internal=True)
             self.silent = True
-            self.follow_up: Callable[[], None] | None = None
 
             if condition:
                 self.condition = condition
@@ -376,16 +374,9 @@ class _BreakpointInternal(gdb.Breakpoint):
     def hit(self) -> bool:
         return self.hit_count > 0
 
-    def delete(self) -> None:
-        if self.hit and self.follow_up:
-            self.enabled = False
-            self.follow_up()
-            self.enabled = True
-        super().delete()
-
 
 @contextlib.contextmanager
-def InternalBreakpoint(
+def internal_breakpoint(
     show_message: bool = True,
     condition: str | None = None,
     location: str = LINE_FN,
@@ -396,12 +387,12 @@ def InternalBreakpoint(
     This context manager sets a silent, internal breakpoint on the requested location before
     returning control to the caller. Once the context manager is exited, the breakpoint is deleted.
     """
-    breakpoint = _BreakpointInternal(location, condition)
+    bp = _BreakpointInternal(location, condition)
     try:
-        yield breakpoint
+        yield bp
     finally:
-        hit = breakpoint.hit
-        breakpoint.delete()
+        hit = bp.hit
+        bp.delete()
         if hit and show_message:
             report.user(stop_message())
 
@@ -462,10 +453,10 @@ class FileLineBreakpoint(ExternalBreakpoint):
         ubeacon = gdb.parse_and_eval("s_ubeacon")
         file_hash = _simple_hash(self._file)
         line_cond = (
-            f"*(uint64_t *){debuggee.get_symbol_address('current_line')} == {self._line}"
+            f"*(uint64_t *){int(ubeacon['current_line'].address)} == {self._line}"
         )
         file_cond = (
-            f"*(uint64_t *){debuggee.get_symbol_address('current_file_id')} == {file_hash}"
+            f"*(uint64_t *){int(ubeacon['current_file_id'].address)} == {file_hash}"
         )
         return f"{line_cond} && {file_cond}"
 
@@ -499,9 +490,9 @@ class FunctionBreakpoint(ExternalBreakpoint):
         ubeacon = gdb.parse_and_eval("s_ubeacon")
         func_hash = _simple_hash(self._func)
         func_cond = (
-            f"*(uint64_t *){debuggee.get_symbol_address('current_func_id')} == {func_hash}"
+            f"*(uint64_t *){int(ubeacon['current_func_id'].address)} == {func_hash}"
         )
-        first_line_cond = f"*(uint64_t *){debuggee.get_symbol_address('first_line')} == 1"
+        first_line_cond = f"*(uint64_t *){int(ubeacon['first_line'].address)} == 1"
         return f"{func_cond} && {first_line_cond}"
 
     def stop(self) -> bool:

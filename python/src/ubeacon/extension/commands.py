@@ -1,5 +1,4 @@
 import contextlib
-import functools
 from typing import Callable, Iterator
 
 import gdb  # pyright: ignore[reportMissingModuleSource]
@@ -12,7 +11,7 @@ from src.udbpy.gdb_extensions import (  # pyright: ignore[reportMissingModuleSou
     udb_base,
 )
 
-from . import debuggee, messages, ubeacon, ui
+from . import debuggee, messages, ubeacon
 
 command.register_prefix(
     "uexperimental python",
@@ -125,11 +124,11 @@ def uexperimental__python__record(udb: udb_base.Udb) -> None:
 
     @contextlib.contextmanager
     def aquire_python_gil() -> Iterator[None]:
-        PyGILState_Ensure = debuggee.Function.from_symbol("PyGILState_Ensure")
-        PyGILState_Release = debuggee.Function.from_symbol("PyGILState_Release")
-        lock = PyGILState_Ensure()
+        ensure = debuggee.Function.from_symbol("PyGILState_Ensure")
+        release = debuggee.Function.from_symbol("PyGILState_Release")
+        lock = ensure()
         yield
-        PyGILState_Release(lock)
+        release(lock)
 
     open_args = "rb"
     with (
@@ -142,8 +141,8 @@ def uexperimental__python__record(udb: udb_base.Udb) -> None:
         fopen = debuggee.Function.from_symbol("fopen")
         handle = fopen(filename_ptr, open_args_ptr)
         assert handle > 0, "Failed to open file"
-        PyRun_SimpleFileEx = debuggee.Function.from_symbol("PyRun_SimpleFileEx")
-        PyRun_SimpleFileEx(handle, filename_ptr, 1)  # This closes the open file.
+        simple_file_ex = debuggee.Function.from_symbol("PyRun_SimpleFileEx")
+        simple_file_ex(handle, filename_ptr, 1)  # This closes the open file.
 
     ubeacon.ready()
 
@@ -218,7 +217,7 @@ def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
             if not debuggee.symbol_exists(init_function):
                 continue  # The symbol doesn't exist yet.
 
-            if init_function in init_breakpoints.keys():
+            if init_function in init_breakpoints:
                 continue  # We've already set this init breakpoint
 
             report.dev2(f"Setting init breakpoint: {init_function}")
@@ -270,7 +269,7 @@ def uexperimental__python__start(udb: udb_base.Udb, args: str) -> None:
         gdb.execute(f"run {args}")
         gdb.execute("upy record")
 
-        with ubeacon.InternalBreakpoint(condition="s_ubeacon.current_file[0] != '<'"):
+        with ubeacon.internal_breakpoint(condition="s_ubeacon.current_file[0] != '<'"):
             gdb.execute("continue")
 
     report.user("Python has been initialized.")
@@ -281,7 +280,7 @@ def _goto_boundry_internal(start: bool = True, show_message: bool = True) -> Non
     with (
         gdbutils.breakpoints_suspended(),
         debuggee.allow_pending(),
-        ubeacon.InternalBreakpoint(show_message=show_message),
+        ubeacon.internal_breakpoint(show_message=show_message),
     ):
         if start:
             gdbutils.execute_to_string("ugo start")
@@ -336,7 +335,7 @@ def uexperimental__python__info__locals(udb: udb_base.Udb) -> None:
 
 
 def _step_internal(move_fn: Callable[[], None]) -> None:
-    with ubeacon.InternalBreakpoint():
+    with ubeacon.internal_breakpoint():
         move_fn()
 
 
@@ -367,7 +366,7 @@ def _finish_internal(
     stay_in_frame = ubeacon.stay_in_frame()
     step_off_return = False
     with (
-        ubeacon.InternalBreakpoint(
+        ubeacon.internal_breakpoint(
             location=location, condition=stay_in_frame
         ) as next_return,
     ):
@@ -410,8 +409,8 @@ def _next_internal(
     stay_in_frame = ubeacon.stay_in_frame()
     step_off_return = False
     with (
-        ubeacon.InternalBreakpoint(condition=stay_in_frame) as next_line,
-        ubeacon.InternalBreakpoint(
+        ubeacon.internal_breakpoint(condition=stay_in_frame) as next_line,
+        ubeacon.internal_breakpoint(
             location=location, condition=stay_in_frame
         ) as next_return,
     ):
@@ -499,8 +498,8 @@ def uexperimental__python__info__breakpoints(udb: udb_base.Udb) -> None:
     if len(ubeacon.breakpoints) == 0:
         report.user("No Python breakpoints.")
 
-    for breakpoint in ubeacon.breakpoints:
-        report.user(f"{breakpoint.index}: {breakpoint}")
+    for bp in ubeacon.breakpoints:
+        report.user(f"{bp.index}: {bp}")
 
 
 @command.register(
@@ -527,12 +526,12 @@ def uexperimental__python__delete(udb: udb_base.Udb, num: int) -> None:
     delete_all = num == 0
     remaining = []
     did_something = False
-    for breakpoint in ubeacon.breakpoints:
-        if breakpoint.index == num or delete_all:
-            breakpoint.delete()
+    for bp in ubeacon.breakpoints:
+        if bp.index == num or delete_all:
+            bp.delete()
             did_something = True
         else:
-            remaining.append(breakpoint)
+            remaining.append(bp)
 
     if not did_something:
         if delete_all:
@@ -564,7 +563,7 @@ def _exception_internal(
     with (
         gdbutils.breakpoints_suspended(),
         debuggee.allow_pending(),
-        ubeacon.InternalBreakpoint(
+        ubeacon.internal_breakpoint(
             location=ubeacon.EXCEPTION_FN, show_message=False
         ) as next_exception,
     ):

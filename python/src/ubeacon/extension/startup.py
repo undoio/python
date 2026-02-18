@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 import gdb  # pyright: ignore[reportMissingModuleSource]
-from src.udbpy import locations  # pyright: ignore[reportMissingModuleSource]
 from src.udbpy.gdb_extensions import (  # pyright: ignore[reportMissingModuleSource]
     command,
     udb_base,
@@ -15,7 +14,7 @@ from src.udbpy.gdb_extensions import (  # pyright: ignore[reportMissingModuleSou
 @functools.cache
 def udb() -> udb_base.Udb:
     gdb.execute("python sys._the_udb_for_ai = _udb")
-    return sys._the_udb_for_ai  # type: ignore[attr-defined]
+    return sys._the_udb_for_ai  # type: ignore[attr-defined]  # pylint: disable=no-member,protected-access
 
 
 def setup() -> None:

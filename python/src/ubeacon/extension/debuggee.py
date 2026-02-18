@@ -12,8 +12,9 @@ from typing import Iterator
 import gdb  # ignore: mypy[import-untyped]
 from src.udbpy import ctrl_c, engine, report
 from src.udbpy.gdb_extensions import gdbutils
-from undo.debugger_extensions import udb
+from undo.debugger_extensions import udb as udb_base
 
+udb = udb_base._wrapped_udb  # pylint: disable=protected-access
 
 def symbol_exists(symbol_name: str) -> bool:
     try:
@@ -30,9 +31,8 @@ def disable_volatile_warning_maybe() -> contextlib.AbstractContextManager[None]:
     The context manager udb.volatile_warning_disabled was added in version 9.2,
     so the message cannot be suppressed in older versions.
     """
-    _udb = udb._wrapped_udb
-    if hasattr(_udb, "volatile_warning_disabled"):
-        return _udb.volatile_warning_disabled
+    if hasattr(udb, "volatile_warning_disabled"):
+        return udb.volatile_warning_disabled
     else:
         return contextlib.nullcontext()
 
@@ -180,7 +180,7 @@ class _GeneralRegisters:
         """
         Get the current value of a register.
         """
-        assert key in self._initial_regs.keys(), f"Unknown key: {key}"
+        assert key in self._initial_regs, f"Unknown key: {key}"
         value = gdbutils.newest_frame().read_register(key)
         report.dev2(f"Read register {key}={value}")
         return int(value)
@@ -190,7 +190,7 @@ class _GeneralRegisters:
         Set the current value of a register.
         """
         report.dev2(f"Setting register {key} to 0x{value:x}")
-        assert key in self._initial_regs.keys(), f"Unknown key: {key}"
+        assert key in self._initial_regs, f"Unknown key: {key}"
         gdbutils.execute_to_string(f"set ${key}=0x{value:x}")
 
     @property
@@ -303,38 +303,37 @@ class Function:
         ]
         return code, len(code)
 
-    @functools.cache
-    def _find_executable_space(self, len: int) -> int:
+    @functools.cache  # pylint: disable=method-cache-max-size-none
+    def _find_executable_space(self, length: int) -> int:
         # this is lifted straigt from out engnie implementation of info prog maps
         maps = []
-        udb_obj = udb._wrapped_udb
         with ctrl_c.deferred():
-            udb_obj.gdbserial.send("vUDB;get_debuggee_maps")
-            with udb_obj.gdbserial.receive_packet():
-                n = udb_obj.gdbserial.receive_number()
+            udb.gdbserial.send("vUDB;get_debuggee_maps")
+            with udb.gdbserial.receive_packet():
+                n = udb.gdbserial.receive_number()
                 for _ in range(n):
                     m = engine.MemoryMap(
-                        begin=udb_obj.gdbserial.receive_number(),
-                        end=udb_obj.gdbserial.receive_number(),
-                        offset=udb_obj.gdbserial.receive_number(),
-                        dev_major=udb_obj.gdbserial.receive_number(),
-                        dev_minor=udb_obj.gdbserial.receive_number(),
-                        inode=udb_obj.gdbserial.receive_number(),
-                        path=udb_obj.gdbserial.receive_hexstr(),
-                        read=bool(udb_obj.gdbserial.receive_number()),
-                        write=bool(udb_obj.gdbserial.receive_number()),
-                        execute=bool(udb_obj.gdbserial.receive_number()),
-                        shared=bool(udb_obj.gdbserial.receive_number()),
+                        begin=udb.gdbserial.receive_number(),
+                        end=udb.gdbserial.receive_number(),
+                        offset=udb.gdbserial.receive_number(),
+                        dev_major=udb.gdbserial.receive_number(),
+                        dev_minor=udb.gdbserial.receive_number(),
+                        inode=udb.gdbserial.receive_number(),
+                        path=udb.gdbserial.receive_hexstr(),
+                        read=bool(udb.gdbserial.receive_number()),
+                        write=bool(udb.gdbserial.receive_number()),
+                        execute=bool(udb.gdbserial.receive_number()),
+                        shared=bool(udb.gdbserial.receive_number()),
                     )
                     maps.append(m)
-        for map in maps:
-            if map.path.startswith("["):
+        for mmap in maps:
+            if mmap.path.startswith("["):
                 continue
-            if map.execute:
+            if mmap.execute:
                 # does this map have enough free space at the top end?
-                data = gdb.selected_inferior().read_memory(map.end - len, len)
-                if list(data) == [b"\x00" for _ in range(len)]:
-                    return map.end - len
+                data = gdb.selected_inferior().read_memory(mmap.end - length, length)
+                if list(data) == [b"\x00" for _ in range(length)]:
+                    return mmap.end - length
         assert False, "Can't find inject location"
 
     def __call__(self, *args: int) -> int:
