@@ -67,7 +67,7 @@ def build() -> Path:
 
     # Not found, build it
     try:
-        subprocess.check_call(
+        subprocess.run(
             [
                 python_executable,
                 "setup.py",
@@ -77,8 +77,8 @@ def build() -> Path:
             ],
             text=True,
             cwd=root,
-            # stdout=subprocess.DEVNULL,
-            # stderr=subprocess.DEVNULL,
+            check=True,
+            capture_output=True,
         )
     except subprocess.CalledProcessError as exc:
         if exc.output:
