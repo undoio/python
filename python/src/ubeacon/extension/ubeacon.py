@@ -51,11 +51,22 @@ def build() -> Path:
     cache_dir = locations.get_undo_cache_path("ubeacon")
 
     # See if it's already built
-    output = subprocess.check_output(
+    cp = subprocess.run(
         [python_executable, "find_so.py", cache_dir], text=True, cwd=root
-    ).strip()
+    )
+    if cp.returncode != 0:
+        if "No module named 'setuptools'" in cp.stderr:
+            raise report.ReportableError(
+                """Error occurred in Python: setuptools is required to build the UBeacon library.
+
+                Please install it using `pip install setuptools`."""
+            )
+        raise report.ReportableError(
+            f"Error locating UBeacon library: {cp.stderr.strip() or 'Unknown error'}"
+        )
+    output = cp.stdout
     if output:
-        lib_path = Path(output)
+        lib_path = Path(output.strip())
         if lib_path.is_file():
             lib_dir = root / "src" / "ubeacon" / "lib"
             # Check the timestamp of the library is newer than the source files
@@ -89,7 +100,7 @@ def build() -> Path:
                     f"Saved stdout to {tf.name}.\n"
                 )
         if exc.stderr:
-            with tempfile.NamedTemporaryFile(delete=False) as tf:
+            with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
                 tf.write(exc.stderr)
                 tf.flush()
                 report.user(
