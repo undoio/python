@@ -9,7 +9,7 @@ module = Extension(
         "src/ubeacon/lib/trace.c",
         "src/ext/cJSON/cJSON.c",
     ],
-    extra_compile_args=["-O0", "-Isrc/ext/cJSON"],
+    extra_compile_args=["-O0", "-Isrc/ext/cJSON", "-std=c99"],
 )
 
 setup(
