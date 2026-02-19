@@ -77,10 +77,24 @@ def build() -> Path:
             ],
             text=True,
             cwd=root,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            # stdout=subprocess.DEVNULL,
+            # stderr=subprocess.DEVNULL,
         )
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as exc:
+        if exc.output:
+            with tempfile.NamedTemporaryFile(delete=False) as tf:
+                tf.write(exc.output)
+                tf.flush()
+                report.user(
+                    f"Saved stdout to {tf.name}.\n"
+                )
+        if exc.stderr:
+            with tempfile.NamedTemporaryFile(delete=False) as tf:
+                tf.write(exc.stderr)
+                tf.flush()
+                report.user(
+                    f"Saved stderr to {tf.name}.\n"
+                )
         raise report.ReportableError(
             """Error occurred in Python: could not debug this version of Python.
                                      
