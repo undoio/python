@@ -478,6 +478,20 @@ def uexperimental__python__break(udb: udb_base.Udb, location: str) -> None:
     if is_file_line:
         file, line_str = location.split(":")
         line = int(line_str)
+        if not file.startswith("/"):
+            # Relative path - get list of files to resolve
+            files = ubeacon.FilesList.from_gdb()
+            matches = [f for f in files.files if f.name == file]
+            if len(matches) == 0:
+                raise report.ReportableError(
+                    f"No files with name {file} found in the debuggee."
+                )
+            elif len(matches) > 1:
+                match_list = "\n".join(f"{i}: {m.name} at {m}" for i, m in enumerate(matches))
+                raise report.ReportableError(
+                    f"Multiple files with name {file} found in the debuggee. Please specify a full path.\n{match_list}"
+                )
+            file = str(matches[0])
         bp = ubeacon.FileLineBreakpoint(file, line)
     else:
         if not location:
@@ -660,3 +674,4 @@ def uexperimental__python__reverse_continue(udb: udb_base.Udb) -> None:
     """
     check_active()
     gdb.execute("reverse-continue")
+    report.user(ubeacon.stop_message())

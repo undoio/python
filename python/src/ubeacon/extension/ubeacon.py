@@ -333,6 +333,27 @@ class LocalList(pydantic.BaseModel):
         """
         return _call_dump_function("locals_json", model_type=cls)
 
+class FilesList(pydantic.BaseModel):
+    files: list[Path]
+
+    def __str__(self) -> str:
+        if len(self) == 0:
+            return "No Python files recorded."
+        else:
+            return "Recorded Python files:\n" + "\n".join(
+                [f" {file}" for file in self.files]
+            )
+
+    def __len__(self) -> int:
+        return len(self.files)
+
+    @classmethod
+    def from_gdb(cls) -> "FilesList":
+        """
+        Get a list of Python files in the current session.
+        """
+        return _call_dump_function("files_json", model_type=cls)
+
 
 def stop_message() -> str:
     """

@@ -21,6 +21,72 @@
 
 
 /**
+ *  \brief Write a JSON object describing the list of Python script files to a file.
+ *
+ *  The format of the JSON object must match the `FilesList` model in
+ *  ubeacon/udb_extension/ubeacon.py.
+ *
+ *  \param path A path to which the files JSON object will be written.
+ */
+__attribute__((unused))
+static void
+s_ubeacon_interact_files_json(const char* path)
+{
+    if (path == NULL) return;
+
+    FILE *file = fopen(path, "w");
+    if (file == NULL) return;
+
+    PyObject *sys      = PyImport_ImportModule("sys");
+    if (!sys) goto fail_no_python;
+
+    PyObject *modules  = PyObject_GetAttrString(sys, "modules");
+    Py_DECREF(sys);
+    if (!modules) goto fail_no_python;
+
+    PyObject *values   = PyMapping_Values(modules);
+    Py_DECREF(modules);
+    if (!values) goto fail_no_python;
+
+    cJSON *top_level = cJSON_CreateObject();
+    if (top_level == NULL) goto fail_no_cjson;
+
+    cJSON *files = cJSON_CreateArray();
+    if (files == NULL) goto fail_files;
+    cJSON_AddItemToObject(top_level, "files", files);
+
+    Py_ssize_t n = PyList_Size(values);
+    for (Py_ssize_t i = 0; i < n; i++) {
+        PyObject *mod  = PyList_GetItem(values, i); // borrowed
+        if (!PyObject_HasAttrString(mod, "__file__")) continue;
+
+        PyObject *file = PyObject_GetAttrString(mod, "__file__");
+        if (!file) { PyErr_Clear(); continue; }
+
+        // Only include .py files (skip None, .so, .pyd, etc.)
+        if (file == Py_None || !PyUnicode_Check(file)) {
+            Py_DECREF(file);
+            continue;
+        }
+
+        const char *path = PyUnicode_AsUTF8(file);
+        if (path && (strstr(path, ".py") != NULL)) {
+            cJSON_AddItemToArray(files, cJSON_CreateString(path));
+        }
+        Py_DECREF(file);
+    }
+
+    Py_DECREF(values);
+
+fail_no_python:
+    fprintf(file, "%s", cJSON_Print(top_level));
+fail_files:
+    cJSON_Delete(top_level);
+fail_no_cjson:
+    fclose(file);
+}
+
+/**
  *  \brief Write a JSON object describing a Python frame to the provided open file object.
  *
  *  The format of the frame object must match the `Frame` Pydantic model in
