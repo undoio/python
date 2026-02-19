@@ -82,7 +82,7 @@ def build() -> Path:
         )
     except subprocess.CalledProcessError as exc:
         if exc.output:
-            with tempfile.NamedTemporaryFile(delete=False) as tf:
+            with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
                 tf.write(exc.output)
                 tf.flush()
                 report.user(
