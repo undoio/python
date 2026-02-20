@@ -52,9 +52,12 @@ def build() -> Path:
 
     # See if it's already built
     cp = subprocess.run(
-        [python_executable, "find_so.py", cache_dir], text=True, cwd=root
+        [python_executable, "find_so.py", cache_dir], text=True, cwd=root, capture_output=True
     )
     if cp.returncode != 0:
+        report.user(f"Error occurred while running find_so.py to locate UBeacon library.")
+        report.user(f"Error output from find_so.py:\n{cp.stderr}")
+        report.user(f"Output from find_so.py:\n{cp.stdout}")
         if "No module named 'setuptools'" in cp.stderr:
             raise report.ReportableError(
                 """Error occurred in Python: setuptools is required to build the UBeacon library.
