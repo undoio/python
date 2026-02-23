@@ -32,6 +32,7 @@ def setup() -> None:
 
     try:
         command.import_commands_module(udb(), "ubeacon.extension.commands")
+        command.import_commands_module(udb(), "ubeacon.extension.ui")
     except KeyboardInterrupt:
         logger.info("Interrupted")
         raise
