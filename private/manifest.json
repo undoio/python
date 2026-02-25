@@ -4,7 +4,7 @@
             "description": "Python debugging support",
             "repo": "addons",
             "script": "python/src/ubeacon/extension/startup.py",
-            "version_min": "7.0.0"
+            "version_min": "8.2.0"
         }
     }
 }
