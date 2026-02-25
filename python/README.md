@@ -1,40 +1,31 @@
-# Undo Beacon Library #
+# Undo Python Debugging Add-on #
 
 ## Introduction ##
 
-The Undo Beacon library - "UBeacon" - is a Python library that attempts to expose Python interpreter
-state to the Undo Engine in a reasonably performant and stable way. This allows basic time travel
-debugging of Python code using special commands - implemented in the `udb` tool.
+This add-on allows basic time travel debugging of Python code using special
+commands - implemented in the `udb` tool.
 
-### Improvements over `libpython` ###
+### Features ###
 
-This is the [second iteration](https://git.undoers.io/Undo/python-debugging) of Undo's Python
-debugging capability. This engineering preview was designed specifically to address the main
-limitations of the previous approach. Namely:
+Debugging is supported on Python versions 3.9 and above.
 
-- Python interpreter symbols are no longer required. This allows debugging of Python from a wide
-  range of sources including distro package managers, `pyenv`, custom builds, and more.
+To debug Python code, prefix a normal UDB command with `upy`, for example: 
+`upy step`, `upy reverse-finish`, `upy backtrace`. For a full list of available
+Python commands, type `help upy`.
 
-- The versions supported have been expanded. Python debugging is now supported on Python 3.9+.
-
-- Python navigation and information commands have been reworked and extended. To debug Python code,
-  prefix a normal UDB command with `upy`, for example: `upy step`, `upy reverse-finish`, `upy
-  backtrace`. For a full list of available Python commands type `help upy`.
-
-- Breakpoints in Python code are now supported, see `upy break` and `upy info break`, `upy delete`
-  for more information.
+Breakpoints in Python code are supported. See `upy break`, `upy info break` and
+`upy delete` for more information.
 
 ## Example Usage ##
 
 > [!NOTE]
-> The UBeacon library *must* be loaded and started at record time. You can use `upy attach`,
+> Python debugging must be explicitly enabled at record time. You can use `upy attach`,
 > `upy run` or `upy start` to do this.
 
-1. Start UDB and load the replay time UBeacon extension using the command `source
-   <path-to-ubeacon>/src/ubeacon/extension/startup.py`:
+1. Start UDB and install the Python add-on:
 
 ```
-gfg@nog:~/git/ubeacon$ /home/gfg/git/core-ai/release-x64/udb /usr/bin/python3.12 -ex "source /home/gfg/git/ubeacon/src/ubeacon/extension/startup.py"
+gfg@nog:~/git/ubeacon$ /home/gfg/git/core-ai/release-x64/udb /usr/bin/python3.12
 UDB 8.3.0-dev.g3a673bb4a019. Copyright 2025 Undo.
 Licensed to: Testfarm User <noreply@undo.io>
 Using GNU gdb (GDB) 13.2:
@@ -47,8 +38,18 @@ For help, type "help".
 For quick-start help on UDB, type "help udb".
 
 Reading symbols from /home/gfg/.pyenv/versions/3.10.13/bin/python...
-not running> source /home/gfg/git/python-debugging/ubeacon/ubeacon/udb_extension/startup.py
-added: /home/gfg/git/python-debugging/ubeacon/ubeacon
+not running> extend python
+Installing 'python'...
+Setting up ubeacon extension from '/home/nbull/python-undoio/addons/python'
+Dependencies set up successfully
+... installed from network.
+
+Type "show extend-license python" for license information.
+
+
+WARNING: The 'python' addon is experimental and may be withdrawn or changed in
+         incompatible ways at any time.
+
 not running>
 ```
 
