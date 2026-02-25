@@ -22,12 +22,61 @@
 
 
 /* --------------------------------------------------------------------------
- * CPython 3.10 dict internals (not in public headers).
+ * CPython dict internals (not in public headers).
  *
- * These definitions mirror the internal structs in Objects/dict-common.h so
- * that we can locate the exact address where a dict stores a value pointer,
- * enabling hardware watchpoints on individual dict entries.
+ * These definitions mirror the internal structs so that we can locate the
+ * exact address where a dict stores a value pointer, enabling hardware
+ * watchpoints on individual dict entries.
+ *
+ * The layout changed significantly between 3.10 and 3.11.
  * -------------------------------------------------------------------------- */
+
+#if PY_VERSION_HEX >= 0x030b0000
+
+/* CPython 3.11+ dict key object layout (from internal/pycore_dict.h). */
+typedef struct {
+    Py_ssize_t dk_refcnt;
+    uint8_t dk_log2_size;
+    uint8_t dk_log2_index_bytes;
+    uint8_t dk_kind;          /* 0 = general, 1 = unicode, 2 = split. */
+    uint32_t dk_version;
+    Py_ssize_t dk_usable;
+    Py_ssize_t dk_nentries;
+    char dk_indices[];
+} compat_PyDictKeysObject;
+
+/* General dict entries (dk_kind == 0): hash + key + value. */
+typedef struct {
+    Py_hash_t me_hash;
+    PyObject *me_key;
+    PyObject *me_value;
+} compat_PyDictKeyEntry;
+
+/* Unicode-only dict entries (dk_kind != 0): key + value, no hash. */
+typedef struct {
+    PyObject *me_key;
+    PyObject *me_value;
+} compat_PyDictUnicodeEntry;
+
+/* PyDictValues wrapper for split-table dicts. */
+#if PY_VERSION_HEX >= 0x030d0000
+/* Python 3.13 added metadata fields before the values array. */
+typedef struct {
+    uint8_t capacity;
+    uint8_t size;
+    uint8_t embedded;
+    uint8_t valid;
+    PyObject *values[1];
+} compat_PyDictValues;
+#else
+typedef struct {
+    PyObject *values[1];
+} compat_PyDictValues;
+#endif
+
+#define COMPAT_DK_IXSIZE(dk)  ((size_t)1 << (dk)->dk_log2_index_bytes)
+
+#else /* Python 3.10 */
 
 typedef PyObject *(*dict_lookup_func_t)(PyDictObject *, PyObject *, Py_hash_t, PyObject **);
 
@@ -46,6 +95,8 @@ typedef struct {
     PyObject *me_value;
 } compat_PyDictKeyEntry;
 
+#endif
+
 
 /**
  *  \brief Find the address of the value slot for a string key in a dict.
@@ -59,6 +110,50 @@ s_dict_value_addr(PyDictObject *dict, const char *key_str)
 {
     compat_PyDictKeysObject *dk =
         (compat_PyDictKeysObject *)dict->ma_keys;
+
+#if PY_VERSION_HEX >= 0x030b0000
+
+    size_t idx_bytes = COMPAT_DK_IXSIZE(dk);
+
+    if (dk->dk_kind == 0) {
+        /* DICT_KEYS_GENERAL: entries have hash + key + value. */
+        compat_PyDictKeyEntry *entries =
+            (compat_PyDictKeyEntry *)((char *)dk->dk_indices + idx_bytes);
+
+        for (Py_ssize_t i = 0; i < dk->dk_nentries; i++) {
+            PyObject *key = entries[i].me_key;
+            if (!key || !PyUnicode_Check(key)) continue;
+            const char *k = PyUnicode_AsUTF8(key);
+            if (k && strcmp(k, key_str) == 0) {
+                if (dict->ma_values) {
+                    compat_PyDictValues *dv =
+                        (compat_PyDictValues *)dict->ma_values;
+                    return &dv->values[i];
+                }
+                return &entries[i].me_value;
+            }
+        }
+    } else {
+        /* DICT_KEYS_UNICODE / DICT_KEYS_SPLIT: compact entries (no hash). */
+        compat_PyDictUnicodeEntry *entries =
+            (compat_PyDictUnicodeEntry *)((char *)dk->dk_indices + idx_bytes);
+
+        for (Py_ssize_t i = 0; i < dk->dk_nentries; i++) {
+            PyObject *key = entries[i].me_key;
+            if (!key || !PyUnicode_Check(key)) continue;
+            const char *k = PyUnicode_AsUTF8(key);
+            if (k && strcmp(k, key_str) == 0) {
+                if (dict->ma_values) {
+                    compat_PyDictValues *dv =
+                        (compat_PyDictValues *)dict->ma_values;
+                    return &dv->values[i];
+                }
+                return &entries[i].me_value;
+            }
+        }
+    }
+
+#else /* Python 3.10 */
 
     int ixsize;
     if (dk->dk_size <= 0xff)
@@ -88,6 +183,9 @@ s_dict_value_addr(PyDictObject *dict, const char *key_str)
             return &entries[i].me_value;
         }
     }
+
+#endif
+
     return NULL;
 }
 
@@ -533,6 +631,74 @@ s_make_link(uintptr_t storage_addr, uintptr_t current_value,
 }
 
 
+#if PY_VERSION_HEX >= 0x030e0000
+
+/* In CPython 3.14, _PyInterpreterFrame replaced the int stacktop field with
+   a _PyStackRef *stackpointer (8 bytes) and added a visited field, moving
+   localsplus from byte offset 72 to 80 on 64-bit.  _PyStackRef is a union
+   holding a uintptr_t on standard GIL-enabled builds, so reading localsplus
+   elements as PyObject* is binary-compatible.
+   See cpython/internal/pycore_interpframe_structs.h. */
+
+typedef struct {
+    PyObject *f_executable;
+    void *previous;
+    PyObject *f_funcobj;
+    PyObject *f_globals;
+    PyObject *f_builtins;
+    PyObject *f_locals;
+    PyFrameObject *frame_obj;
+    void *instr_ptr;
+    void *stackpointer;
+    uint16_t return_offset;
+    char owner;
+    uint8_t visited;
+    PyObject *localsplus[1];
+} compat_PyInterpreterFrame;
+
+typedef struct {
+    PyObject ob_base;
+    PyFrameObject *f_back;
+    compat_PyInterpreterFrame *f_frame;
+} compat_PyFrameObject;
+
+#elif PY_VERSION_HEX >= 0x030b0000
+
+/* In CPython 3.11+, PyFrameObject is opaque and the fast locals array moved
+   to the internal _PyInterpreterFrame.localsplus. We mirror just enough of
+   the internal layout to find fast local addresses for watchpoints.
+   These must be kept in sync with cpython/internal/pycore_frame.h.
+
+   Note: CPython 3.12 reordered the fields of _PyInterpreterFrame, and 3.13
+   renamed f_code to f_executable and prev_instr to instr_ptr, but the
+   localsplus flexible array member remains at the same byte offset (72 bytes
+   on 64-bit), so this struct works for 3.11, 3.12, and 3.13.
+   For 3.14+, see the separate struct above. */
+
+typedef struct {
+    PyObject *f_func;
+    PyObject *f_globals;
+    PyObject *f_builtins;
+    PyObject *f_locals;
+    PyCodeObject *f_code;
+    PyFrameObject *frame_obj;
+    void *previous;
+    void *prev_instr;
+    int stacktop;
+    bool is_entry;
+    char owner;
+    PyObject *localsplus[1];
+} compat_PyInterpreterFrame;
+
+typedef struct {
+    PyObject ob_base;
+    PyFrameObject *f_back;
+    compat_PyInterpreterFrame *f_frame;
+} compat_PyFrameObject;
+
+#endif
+
+
 /**
  *  \brief Resolve a watch chain: for each step in a Python expression, find the memory
  *         address where the relevant PyObject* pointer is stored.
@@ -600,8 +766,12 @@ s_ubeacon_interact_resolve_watch_chain(const char *output_path, const char *inpu
             if (!name_item || !cJSON_IsString(name_item)) continue;
             const char *name = name_item->valuestring;
 
-            /* Try local variables first (stored in frame->f_localsplus). */
-            PyObject *varnames = code->co_varnames;
+            /* Try local variables first. */
+#if PY_VERSION_HEX >= 0x030b0000
+            PyObject *varnames = PyCode_GetVarnames(code); /* strong ref */
+#else
+            PyObject *varnames = code->co_varnames; /* borrowed */
+#endif
             Py_ssize_t idx = -1;
             for (Py_ssize_t j = 0; j < PyTuple_Size(varnames); j++) {
                 const char *vname = PyUnicode_AsUTF8(PyTuple_GetItem(varnames, j));
@@ -610,10 +780,21 @@ s_ubeacon_interact_resolve_watch_chain(const char *output_path, const char *inpu
                     break;
                 }
             }
+#if PY_VERSION_HEX >= 0x030b0000
+            Py_DECREF(varnames);
+#endif
 
             if (idx >= 0) {
+#if PY_VERSION_HEX >= 0x030b0000
+                /* In 3.11+ the fast locals are in the internal interpreter
+                   frame, accessed via the compat struct. */
+                compat_PyFrameObject *cf = (compat_PyFrameObject *)frame;
+                uintptr_t storage = (uintptr_t)&cf->f_frame->localsplus[idx];
+                PyObject *value = cf->f_frame->localsplus[idx];
+#else
                 uintptr_t storage = (uintptr_t)&frame->f_localsplus[idx];
                 PyObject *value = frame->f_localsplus[idx];
+#endif
                 link = s_make_link(storage, (uintptr_t)value, "local", 0);
                 current_obj = value;
             } else {
