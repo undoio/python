@@ -11,6 +11,7 @@ Python code (next/step/finish etc.).
 import contextlib
 import functools
 import json
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -358,6 +359,49 @@ class FilesList(pydantic.BaseModel):
         return _call_dump_function("files_json", model_type=cls)
 
 
+class WatchLink(pydantic.BaseModel):
+    """One resolved step in a watch chain."""
+
+    storage_addr: int | None = None
+    current_value: int
+    link_type: str
+    guard_addr: int | None = None
+
+    @pydantic.validator("storage_addr", "current_value", "guard_addr", pre=True)
+    @classmethod
+    def _parse_hex(cls, v: str | int | None) -> int | None:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return int(v, 16)
+        return v
+
+
+class WatchChain(pydantic.BaseModel):
+    """Resolved storage addresses for every step of a watched Python expression."""
+
+    links: list[WatchLink]
+
+    @classmethod
+    def from_gdb(cls, chain_steps: list[dict]) -> "WatchChain":
+        """Resolve a watch chain by calling the C function in the debuggee."""
+        require()
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json"
+        ) as input_file, tempfile.NamedTemporaryFile(
+            suffix=".json"
+        ) as output_file, debuggee.disable_volatile_warning_maybe():
+            json.dump(chain_steps, input_file)
+            input_file.flush()
+            cmd = (
+                f'call {PREFIX}_interact_resolve_watch_chain'
+                f'("{output_file.name}", "{input_file.name}")'
+            )
+            gdb.execute(cmd)
+            content = Path(output_file.name).read_text()
+        return cls(**json.loads(content))
+
+
 def stop_message() -> str:
     """
     Generates a message describing the current location in Python source.
@@ -442,6 +486,13 @@ def internal_breakpoint(
     finally:
         hit = bp.hit
         bp.delete()
+
+        # Evaluate any watches whose hardware watchpoints fired, or whose
+        # values may have changed during reverse execution.
+        from . import watch  # Deferred to avoid circular import.
+
+        watch.report_pending()
+
         if hit and show_message:
             report.user(stop_message())
 

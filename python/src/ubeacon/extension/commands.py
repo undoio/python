@@ -11,7 +11,7 @@ from src.udbpy.gdb_extensions import (  # pyright: ignore[reportMissingModuleSou
     udb_base,
 )
 
-from . import debuggee, messages, ubeacon
+from . import debuggee, messages, ubeacon, watch
 
 command.register_prefix(
     "uexperimental python",
@@ -40,7 +40,7 @@ command.register_prefix(
     """
     Navigate between Python exceptions.
     """,
-    aliases=["uexperimental python go except", "uexperimental python go ex"],
+    aliases=["upy go except", "upy go ex"],
 )
 
 command.register_prefix(
@@ -651,12 +651,11 @@ def uexperimental__python__continue(udb: udb_base.Udb) -> None:
     """
     Continue Python program execution.
 
-    Execution will continue until a Python breakpoint is hit, a signal is received,
-    or the program terminates.
+    Execution will continue until a Python breakpoint or watchpoint is hit,
+    a signal is received, or the program terminates.
     """
     check_active()
-    gdb.execute("continue")
-    report.user(ubeacon.stop_message())
+    _continue_impl("continue")
 
 
 @command.register(
@@ -669,9 +668,86 @@ def uexperimental__python__reverse_continue(udb: udb_base.Udb) -> None:
     """
     Continue Python program execution in reverse.
 
-    Execution will continue backwards until a Python breakpoint is hit, a signal is received,
-    or the beginning of the execution history is reached.
+    Execution will continue backwards until a Python breakpoint or watchpoint
+    is hit, a signal is received, or the beginning of the execution history
+    is reached.
     """
     check_active()
-    gdb.execute("reverse-continue")
+    _continue_impl("reverse-continue")
+
+
+def _continue_impl(gdb_command: str) -> None:
+    """Shared logic for continue and reverse-continue.
+
+    When watches are active, a hardware watchpoint may fire at an
+    intermediate C-level state where the Python value has not yet
+    changed.  In that case we automatically resume execution until the
+    value actually changes or a non-watchpoint stop occurs.
+    """
+    while True:
+        gdb.execute(gdb_command)
+        if not watch.any_pending():
+            break
+        if watch.evaluate_pending():
+            break
+        # Hardware watchpoint fired but the Python-level value has not
+        # changed yet (intermediate state).  Resume.
     report.user(ubeacon.stop_message())
+
+
+@command.register(
+    gdb.COMMAND_BREAKPOINTS,
+    aliases=["uexperimental python w"],
+    arg_parser=command_args.Untokenized(),
+)
+def uexperimental__python__watch(udb: udb_base.Udb, expression: str) -> None:
+    """
+    Set a watchpoint on a Python expression.
+
+    USAGE: upy watch <expression>
+
+    The watchpoint will notify you when the expression's value changes.
+    Supports names, integer subscripts, and attribute access, e.g. ``obj[0].attr``.
+    """
+    check_active()
+    if not expression:
+        raise report.ReportableError(
+            "This command requires an argument. See `help upy watch` for more information."
+        )
+    pw = watch.add_watch(expression)
+    report.user(f"Python watchpoint {pw.index}: {pw.expr}")
+    report.user(f"  Current value: {pw._prev_value}")
+
+
+@command.register(
+    gdb.COMMAND_BREAKPOINTS,
+    repeat=False,
+    aliases=["uexperimental python info w", "uexperimental python info watch"],
+)
+def uexperimental__python__info__watches(udb: udb_base.Udb) -> None:
+    """
+    List all Python watchpoints.
+    """
+    check_active()
+    if not watch.watches:
+        report.user("No Python watchpoints.")
+        return
+    for w in watch.watches:
+        report.user(w.display)
+
+
+@command.register(
+    gdb.COMMAND_BREAKPOINTS,
+    repeat=False,
+    arg_parser=command_args.Integer(default=0),
+)
+def uexperimental__python__unwatch(udb: udb_base.Udb, num: int) -> None:
+    """
+    Delete all or some Python watchpoints.
+
+    USAGE: upy unwatch [NUM]
+    NUM is the number of the watchpoint, as listed in ``upy info watches``.
+    To delete all watchpoints, give no argument.
+    """
+    check_active()
+    watch.remove_watch(num)

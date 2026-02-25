@@ -10,6 +10,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <Python.h>
 #include <frameobject.h> /* Warning, this isn't part of the Public API! */
 #include <string.h>
@@ -18,6 +19,77 @@
 #include "cJSON.h"
 
 #include "ubeacon.h"
+
+
+/* --------------------------------------------------------------------------
+ * CPython 3.10 dict internals (not in public headers).
+ *
+ * These definitions mirror the internal structs in Objects/dict-common.h so
+ * that we can locate the exact address where a dict stores a value pointer,
+ * enabling hardware watchpoints on individual dict entries.
+ * -------------------------------------------------------------------------- */
+
+typedef PyObject *(*dict_lookup_func_t)(PyDictObject *, PyObject *, Py_hash_t, PyObject **);
+
+typedef struct {
+    Py_ssize_t dk_refcnt;
+    Py_ssize_t dk_size;       /* Hash table size (always power of 2). */
+    dict_lookup_func_t dk_lookup;
+    Py_ssize_t dk_usable;
+    Py_ssize_t dk_nentries;   /* Number of occupied entries. */
+    char dk_indices[];         /* Variable-length, followed by dk_entries. */
+} compat_PyDictKeysObject;
+
+typedef struct {
+    Py_hash_t me_hash;
+    PyObject *me_key;
+    PyObject *me_value;
+} compat_PyDictKeyEntry;
+
+
+/**
+ *  \brief Find the address of the value slot for a string key in a dict.
+ *
+ *  Returns the address of the ``PyObject*`` that stores the value for
+ *  \p key_str, or NULL if the key is not found.  This works for both
+ *  combined and split dict tables.
+ */
+static PyObject **
+s_dict_value_addr(PyDictObject *dict, const char *key_str)
+{
+    compat_PyDictKeysObject *dk =
+        (compat_PyDictKeysObject *)dict->ma_keys;
+
+    int ixsize;
+    if (dk->dk_size <= 0xff)
+        ixsize = 1;
+    else if (dk->dk_size <= 0xffff)
+        ixsize = 2;
+    else if ((uint64_t)dk->dk_size <= 0xffffffffULL)
+        ixsize = 4;
+    else
+        ixsize = 8;
+
+    compat_PyDictKeyEntry *entries =
+        (compat_PyDictKeyEntry *)((char *)dk->dk_indices
+                                  + dk->dk_size * ixsize);
+
+    for (Py_ssize_t i = 0; i < dk->dk_nentries; i++) {
+        PyObject *key = entries[i].me_key;
+        if (!key) continue;
+        if (!PyUnicode_Check(key)) continue;
+        const char *k = PyUnicode_AsUTF8(key);
+        if (k && strcmp(k, key_str) == 0) {
+            if (dict->ma_values) {
+                /* Split table: values in separate array. */
+                return &dict->ma_values[i];
+            }
+            /* Combined table: value inline in entry. */
+            return &entries[i].me_value;
+        }
+    }
+    return NULL;
+}
 
 
 /**
@@ -389,4 +461,253 @@ s_ubeacon_interact_exception_type(PyObject *exc_info)
     Py_DECREF(exc_type);
     Py_DECREF(exc_type_name);
     Py_DECREF(exc_type_name_str);
+}
+
+
+/**
+ *  \brief Read the entire contents of a file into a heap-allocated string.
+ *
+ *  The caller is responsible for freeing the returned string.
+ *
+ *  \param path The path to the file to read.
+ *  \return A null-terminated string containing the file contents, or NULL on failure.
+ */
+static char *
+s_read_file(const char *path)
+{
+    FILE *f = fopen(path, "r");
+    if (!f) return NULL;
+
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    char *buf = malloc(len + 1);
+    if (!buf) { fclose(f); return NULL; }
+
+    fread(buf, 1, len, f);
+    buf[len] = '\0';
+    fclose(f);
+    return buf;
+}
+
+
+/**
+ *  \brief Create a cJSON link object describing one resolved step in a watch chain.
+ *
+ *  \param storage_addr  Address where the PyObject* pointer is stored, or 0 if unknown.
+ *  \param current_value The current PyObject* value at that step.
+ *  \param link_type     A string describing the link type (e.g. "local", "list_item").
+ *  \param guard_addr    Address of a guard value to watch for container changes, or 0 if none.
+ *  \return A cJSON object, or NULL on failure.
+ */
+static cJSON *
+s_make_link(uintptr_t storage_addr, uintptr_t current_value,
+            const char *link_type, uintptr_t guard_addr)
+{
+    cJSON *link = cJSON_CreateObject();
+    if (!link) return NULL;
+
+    char buf[32];
+
+    if (storage_addr) {
+        snprintf(buf, sizeof(buf), "0x%lx", (unsigned long)storage_addr);
+        cJSON_AddItemToObject(link, "storage_addr", cJSON_CreateString(buf));
+    } else {
+        cJSON_AddItemToObject(link, "storage_addr", cJSON_CreateNull());
+    }
+
+    snprintf(buf, sizeof(buf), "0x%lx", (unsigned long)current_value);
+    cJSON_AddItemToObject(link, "current_value", cJSON_CreateString(buf));
+
+    cJSON_AddItemToObject(link, "link_type", cJSON_CreateString(link_type));
+
+    if (guard_addr) {
+        snprintf(buf, sizeof(buf), "0x%lx", (unsigned long)guard_addr);
+        cJSON_AddItemToObject(link, "guard_addr", cJSON_CreateString(buf));
+    } else {
+        cJSON_AddItemToObject(link, "guard_addr", cJSON_CreateNull());
+    }
+
+    return link;
+}
+
+
+/**
+ *  \brief Resolve a watch chain: for each step in a Python expression, find the memory
+ *         address where the relevant PyObject* pointer is stored.
+ *
+ *  The chain is described by a JSON array read from \p input_path, where each element is
+ *  an object with a "type" field ("name", "index", or "attr") and associated data.
+ *
+ *  The result is written to \p output_path as a JSON object with a "links" array.
+ *  Each link contains:
+ *    - storage_addr: hex address where the PyObject* is stored (null if unknown)
+ *    - current_value: hex address of the current PyObject* value
+ *    - link_type: "local", "global", "list_item", "dict_attr", or "slot_attr"
+ *    - guard_addr: hex address of a guard to detect container changes (null if stable)
+ *
+ *  \param output_path Path to which the resolved chain JSON will be written.
+ *  \param input_path  Path from which the chain description JSON will be read.
+ */
+__attribute__((unused))
+static void
+s_ubeacon_interact_resolve_watch_chain(const char *output_path, const char *input_path)
+{
+    if (!output_path || !input_path) return;
+
+    FILE *outfile = fopen(output_path, "w");
+    if (!outfile) return;
+
+    cJSON *top_level = cJSON_CreateObject();
+    if (!top_level) goto fail_close;
+
+    cJSON *links_array = cJSON_CreateArray();
+    if (!links_array) goto fail_top;
+    cJSON_AddItemToObject(top_level, "links", links_array);
+
+    if (!Py_IsInitialized()) goto done;
+
+    char *input_str = s_read_file(input_path);
+    if (!input_str) goto done;
+
+    cJSON *chain = cJSON_Parse(input_str);
+    free(input_str);
+    if (!chain) goto done;
+
+    PyGILState_STATE gil = PyGILState_Ensure();
+
+    PyFrameObject *frame = ubeacon_get()->current_frame;
+    if (!frame) goto fail_gil;
+
+    PyCodeObject *code = PyFrame_GetCode(frame);
+    if (!code) goto fail_gil;
+
+    /* Walk the chain, resolving each step. `current_obj` tracks the object being traversed. */
+    PyObject *current_obj = NULL;
+    int n = cJSON_GetArraySize(chain);
+
+    for (int i = 0; i < n; i++) {
+        cJSON *step = cJSON_GetArrayItem(chain, i);
+        cJSON *type_item = cJSON_GetObjectItem(step, "type");
+        if (!type_item || !cJSON_IsString(type_item)) continue;
+        const char *type = type_item->valuestring;
+
+        cJSON *link = NULL;
+
+        if (strcmp(type, "name") == 0) {
+            cJSON *name_item = cJSON_GetObjectItem(step, "name");
+            if (!name_item || !cJSON_IsString(name_item)) continue;
+            const char *name = name_item->valuestring;
+
+            /* Try local variables first (stored in frame->f_localsplus). */
+            PyObject *varnames = code->co_varnames;
+            Py_ssize_t idx = -1;
+            for (Py_ssize_t j = 0; j < PyTuple_Size(varnames); j++) {
+                const char *vname = PyUnicode_AsUTF8(PyTuple_GetItem(varnames, j));
+                if (vname && strcmp(vname, name) == 0) {
+                    idx = j;
+                    break;
+                }
+            }
+
+            if (idx >= 0) {
+                uintptr_t storage = (uintptr_t)&frame->f_localsplus[idx];
+                PyObject *value = frame->f_localsplus[idx];
+                link = s_make_link(storage, (uintptr_t)value, "local", 0);
+                current_obj = value;
+            } else {
+                /* Fall back to globals dict. */
+                PyObject *globals = PyEval_GetGlobals();
+                if (globals) {
+                    PyObject *value = PyDict_GetItemString(globals, name); /* borrowed */
+                    if (value) {
+                        PyObject **vaddr =
+                            s_dict_value_addr((PyDictObject *)globals, name);
+                        uintptr_t storage = vaddr ? (uintptr_t)vaddr : 0;
+                        link = s_make_link(storage, (uintptr_t)value, "global", 0);
+                        current_obj = value;
+                    }
+                    Py_DECREF(globals);
+                }
+            }
+        } else if (strcmp(type, "index") == 0) {
+            cJSON *idx_item = cJSON_GetObjectItem(step, "index");
+            if (!idx_item || !cJSON_IsNumber(idx_item) || !current_obj) continue;
+            Py_ssize_t index = (Py_ssize_t)idx_item->valueint;
+
+            if (PyList_Check(current_obj) && index >= 0
+                && index < Py_SIZE(current_obj)) {
+                PyListObject *list = (PyListObject *)current_obj;
+                uintptr_t storage = (uintptr_t)&list->ob_item[index];
+                uintptr_t guard = (uintptr_t)&list->ob_item;
+                PyObject *value = list->ob_item[index];
+                link = s_make_link(storage, (uintptr_t)value, "list_item", guard);
+                current_obj = value;
+            }
+        } else if (strcmp(type, "key") == 0) {
+            cJSON *key_item = cJSON_GetObjectItem(step, "key");
+            if (!key_item || !cJSON_IsString(key_item) || !current_obj) continue;
+            const char *key = key_item->valuestring;
+
+            if (PyDict_Check(current_obj)) {
+                PyObject *value = PyDict_GetItemString(current_obj, key);
+                if (value) {
+                    PyObject **vaddr =
+                        s_dict_value_addr((PyDictObject *)current_obj, key);
+                    uintptr_t storage = vaddr ? (uintptr_t)vaddr : 0;
+                    link = s_make_link(
+                        storage, (uintptr_t)value, "dict_key", 0);
+                    current_obj = value;
+                }
+            }
+        } else if (strcmp(type, "attr") == 0) {
+            cJSON *name_item = cJSON_GetObjectItem(step, "name");
+            if (!name_item || !cJSON_IsString(name_item) || !current_obj) continue;
+            const char *attr_name = name_item->valuestring;
+
+            PyObject *value = PyObject_GetAttrString(current_obj, attr_name);
+            if (!value) { PyErr_Clear(); continue; }
+
+            /* Check whether the attribute is stored in the instance __dict__. */
+            PyObject *obj_dict = NULL;
+            if (PyObject_HasAttrString(current_obj, "__dict__")) {
+                obj_dict = PyObject_GetAttrString(current_obj, "__dict__");
+            }
+
+            if (obj_dict && PyDict_Check(obj_dict)
+                && PyDict_GetItemString(obj_dict, attr_name)) {
+                PyObject **vaddr =
+                    s_dict_value_addr((PyDictObject *)obj_dict, attr_name);
+                uintptr_t storage = vaddr ? (uintptr_t)vaddr : 0;
+                link = s_make_link(storage, (uintptr_t)value, "dict_attr", 0);
+            } else {
+                /* Slot attribute or computed property. */
+                link = s_make_link(0, (uintptr_t)value, "slot_attr", 0);
+            }
+
+            Py_XDECREF(obj_dict);
+            current_obj = value;
+            /* Note: we intentionally do not DECREF value so current_obj stays valid
+               for subsequent chain steps. The objects are owned by the debuggee and
+               this function runs in a forked process, so leaking is harmless. */
+        }
+
+        if (link) {
+            cJSON_AddItemToArray(links_array, link);
+        }
+    }
+
+    Py_DECREF(code);
+
+fail_gil:
+    PyGILState_Release(gil);
+    cJSON_Delete(chain);
+
+done:
+    fprintf(outfile, "%s", cJSON_Print(top_level));
+fail_top:
+    cJSON_Delete(top_level);
+fail_close:
+    fclose(outfile);
 }
