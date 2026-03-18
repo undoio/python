@@ -18,11 +18,14 @@ Rather than running your Python script directly, launch UDB with your Python int
 
 ```
 udb /path/to/python
-	- or -
+    - or -
 udb `which python`
 ```
 
-Note: If using pyenv, use: `` udb `pyenv which python` ``
+Note: If using pyenv, use:
+```bash
+    udb `pyenv which python`
+```
 
 ## **Step 2: Install the Python Addon**
 
@@ -50,7 +53,7 @@ For example:
 not running> upy start /home/user/scripts/fizzbuzz.py 20
 ```
 
-UDB will initialise the Python environment and begin recording execution. You'll see a prompt like:
+UDB will initialize the Python environment and begin recording execution. You'll see a prompt like:
 
 ```
 Python has been initialized.
@@ -72,8 +75,6 @@ Use these to navigate at the **C level** (the underlying interpreter execution).
 * `Last <expression>` — travel backwards to the last time \<expression\> changed  
   
 
-
-### 
 
 ### **Python-level commands (prefixed with `upy`)**
 
@@ -107,8 +108,6 @@ Python breakpoint 1, fizzbuzz () at /home/user/scripts/fizzbuzz.py:4
   #0 File "fizzbuzz.py", line 5, in fizzbuzz
     if i % 3 == 0 and i % 5 == 0:
 ```
-
-## 
 
 ## **TUI Layout**
 
