@@ -12,6 +12,7 @@ import contextlib
 import functools
 import json
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -23,9 +24,11 @@ import pygments
 import pygments.formatters
 import pygments.lexers
 from src.udbpy import locations, report  # pyright: ignore[reportMissingModuleSource]
-from src.udbpy.gdb_extensions import gdbutils  # pyright: ignore[reportMissingModuleSource]
+from src.udbpy.gdb_extensions import (
+    gdbutils,
+)  # pyright: ignore[reportMissingModuleSource]
 
-from . import debuggee, messages
+from . import debuggee, download_python_headers, messages
 
 PREFIX = "s_ubeacon"
 STATE_STRUCT = PREFIX
@@ -34,6 +37,84 @@ LINE_FN = f"{TRACE_PREFIX}_line"
 CALL_FN = f"{TRACE_PREFIX}_call"
 RET_FN = f"{TRACE_PREFIX}_ret"
 EXCEPTION_FN = f"{TRACE_PREFIX}_exception"
+
+
+def wrap_build(python_executable: str, cache_dir: Path, addon_root: Path) -> None:
+    """Build the UBeacon library using the specified Python executable.
+    
+    If the Python development headers are not available on the system, they are
+    downloaded using the distro's package manager.   
+
+    python_executable:
+        The path to the Python executable to build against.
+    cache_dir:
+        The directory to use for caching build artifacts and downloaded headers.
+    addon_root:
+        The root directory of the addon, where `setup.py` is located.
+    """
+
+    version_string = subprocess.check_output(
+        [
+            python_executable,
+            "-c",
+            "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')",
+        ],
+        text=True,
+        cwd=addon_root,
+        stderr=subprocess.STDOUT,
+    ).strip()
+
+    # Does this Python executable have development headers installed already?
+    include_paths = subprocess.check_output(
+        [
+            python_executable,
+            "-c",
+            "import sysconfig; print(sysconfig.get_path('include'))",
+        ],
+        text=True,
+    ).strip()
+
+    if not Path(include_paths).exists():
+        # Fetch headers from a distro package
+        header_dir = download_python_headers.python_dev_headers(
+            version_string, storage_dir=cache_dir
+        )
+        include_paths = f"{header_dir}/usr/include:{header_dir}/usr/include/python{version_string}"
+
+    try:
+        subprocess.run(
+            [
+                python_executable,
+                "setup.py",
+                "build",
+                "--quiet",
+                f"--build-base={cache_dir}",
+            ],
+            text=True,
+            cwd=addon_root,
+            check=True,
+            capture_output=True,
+            env={**os.environ, "PYTHON_INCLUDE_DIRS": include_paths},)
+
+    except subprocess.CalledProcessError as exc:
+        output = ""
+        if exc.output:
+            with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
+                tf.write(exc.output)
+                tf.flush()
+                output += f"Saved stdout to {tf.name}.\n"
+        if exc.stderr:
+            with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
+                tf.write(exc.stderr)
+                tf.flush()
+                output += f"Saved stderr to {tf.name}.\n"
+        raise report.ReportableError(
+            f"""Error occurred in Python: could not debug this version of Python.
+                                     
+            You may need to install Python development headers for this version.
+            
+            {output}"""
+        )
 
 
 @functools.cache
@@ -81,40 +162,8 @@ def build() -> Path:
                 return lib_path
 
     # Not found, build it
-    try:
-        subprocess.run(
-            [
-                python_executable,
-                "setup.py",
-                "build",
-                "--quiet",
-                f"--build-base={cache_dir}",
-            ],
-            text=True,
-            cwd=root,
-            check=True,
-            capture_output=True,
-        )
-    except subprocess.CalledProcessError as exc:
-        if exc.output:
-            with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
-                tf.write(exc.output)
-                tf.flush()
-                report.user(
-                    f"Saved stdout to {tf.name}.\n"
-                )
-        if exc.stderr:
-            with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
-                tf.write(exc.stderr)
-                tf.flush()
-                report.user(
-                    f"Saved stderr to {tf.name}.\n"
-                )
-        raise report.ReportableError(
-            """Error occurred in Python: could not debug this version of Python.
-                                     
-            You may need to install Python development headers for this version."""
-        )
+    wrap_build(python_executable, cache_dir, root)
+
     output = subprocess.check_output(
         [python_executable, "find_so.py", cache_dir], text=True, cwd=root
     )
