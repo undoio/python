@@ -234,7 +234,8 @@ def temporary_memory(addr: int, data: list[int]) -> Iterator[None]:
     """
 
     read_cmd = f"print/d *(unsigned char*){hex(addr)}@{len(data)}"
-    orig_data_str = gdbutils.execute_to_string(read_cmd)
+    with gdbutils.temporary_parameter("print array-index", "off"):
+        orig_data_str = gdbutils.execute_to_string(read_cmd)
     orig_data = [int(x) for x in orig_data_str.split("=")[-1].strip()[1:-1].split(",")]
     write_cmd = (
         f"set {{char[{len(data)}]}} {hex(addr)} = {{" + ", ".join(map(str, data)) + "}"
