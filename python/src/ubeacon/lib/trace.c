@@ -122,19 +122,25 @@ s_is_exception_origin(PyObject *exc_info, PyObject *current_frame)
     if (!PyTuple_Check(exc_info))
     {
         PyErr_SetString(PyExc_TypeError, "exc_info is not a tuple.");
-        return NULL;
+        return false;
     }
 
     if (PyTuple_Size(exc_info) != 3)
     {
         PyErr_SetString(PyExc_RuntimeError, "exc_info does not have 3 elements.");
-        return NULL;
+        return false;
     }
 
     PyObject *traceback = PyTuple_GetItem(exc_info, 2);
+    /* Python 3.12 can return a None traceback. */
+    if (!PyTraceBack_Check(traceback))
+    {
+        return false;
+    }
+
     PyObject *next = PyObject_GetAttrString(traceback, "tb_next");
     PyObject *frame = PyObject_GetAttrString(traceback, "tb_frame");
-    
+
     while (next != NULL && next != Py_None)
     {
         Py_XDECREF(next);
